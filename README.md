@@ -163,6 +163,18 @@ pytest
 ruff check .
 ```
 
+Testes das funções SQL (precisam de um Supabase **local**, nunca do dev/prod):
+
+```bash
+npx supabase start          # na raiz; precisa do Docker
+npx supabase db reset
+pip install "psycopg[binary]" pytest
+export TEST_DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+pytest tests_sql -v         # dentro de backend/
+```
+
+Sem `TEST_DATABASE_URL` esses testes são ignorados.
+
 ### Como implementar uma rota
 
 As rotas já existem no contrato, mas devolvem **501** até serem implementadas.
@@ -177,6 +189,7 @@ As rotas já existem no contrato, mas devolvem **501** até serem implementadas.
 - Todas as rotas, exceto `/health`, exigem o header `Authorization: Bearer <token do Supabase Auth>`.
 - **Preço do produto e taxa de entrega são calculados no servidor**, nunca enviados pelo front-end.
 - `POST /vendas` roda tudo na **mesma transação**: venda, itens, baixa de estoque e criação da entrega.
+- **Estoque de botijões (cheio e vazio):** toda venda de produto com `controla_vazio` (gás) baixa 1 unidade **cheia** e soma 1 **vazia**; cancelar a venda desfaz. Quem faz isso é o banco, pelas funções SQL `registrar_venda`, `cancelar_venda` e `movimentar_estoque` (chame com `chamar_rpc` de `app/core/db_errors.py`, que converte os erros em 404/409/422). Nunca altere `estoque_atual`/`estoque_vazio` direto pela API.
 - Telefone é guardado **somente com dígitos** (ex.: `5398812447`).
 - Mudou o formato de uma rota? **Avise o front-end** antes de mesclar.
 

@@ -32,8 +32,8 @@ class EntregaOut(BaseModel):
 class EntregaUpdate(BaseModel):
     """PATCH parcial: atribuir entregador e/ou mudar status.
 
-    status=cancelada deve devolver os itens ao estoque
-    (movimentação de entrada, origem=cancelamento) e cancelar a venda.
+    status=cancelada chama a função SQL cancelar_venda: devolve os itens ao estoque
+    (movimentação de entrada, origem=cancelamento) e cancela a venda.
     status=entregue grava entregue_em.
     """
 

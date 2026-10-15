@@ -29,7 +29,10 @@ def listar_produtos(
 
 @router.post("", response_model=ProdutoOut, status_code=201)
 def criar_produto(dados: ProdutoCreate):
-    """Se estoque_inicial > 0, gravar uma movimentação de entrada (origem=ajuste)."""
+    """Insere o produto com estoque_atual=0 e, se estoque_inicial > 0, chama a função SQL
+    `movimentar_estoque` (entrada, origem=ajuste) para gravar o saldo e a movimentação.
+    controla_vazio omitido = True quando categoria == "gas".
+    """
     raise nao_implementado()
 
 
@@ -56,5 +59,9 @@ def listar_movimentacoes(produto_id: int | None = None, limite: int = 50):
 
 @estoque_router.post("/movimentacoes", response_model=MovimentacaoOut, status_code=201)
 def registrar_movimentacao(dados: MovimentacaoCreate):
-    """Registrar entrada/saída manual. Saída não pode deixar o estoque negativo (409)."""
+    """Entrada/saída manual via função SQL `movimentar_estoque` (use chamar_rpc).
+
+    `estoque` escolhe cheio ou vazio (vazio só em produto com controla_vazio).
+    Saída que deixaria o saldo negativo -> 409. Produto inexistente -> 404.
+    """
     raise nao_implementado()
