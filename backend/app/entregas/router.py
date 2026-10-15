@@ -34,7 +34,14 @@ def resumo_entregas():
 
 @router.patch("/{entrega_id}", response_model=EntregaOut)
 def atualizar_entrega(entrega_id: int, dados: EntregaUpdate):
-    """Atribuir entregador, marcar como entregue ou cancelar."""
+    """Atribuir entregador, marcar como entregue ou cancelar.
+
+    - status=cancelada: chame a função SQL `cancelar_venda(venda_id)` via chamar_rpc.
+      Ela devolve os cheios, retira os vazios, cancela venda e entrega
+      (409 se já cancelada ou já entregue).
+    - status=entregue: atualizar status e entregue_em.
+    - entregador_id: atualizar a entrega.
+    """
     raise nao_implementado()
 
 

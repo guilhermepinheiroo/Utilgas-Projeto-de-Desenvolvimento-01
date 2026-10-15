@@ -18,16 +18,25 @@ router = APIRouter(prefix="/vendas", tags=["Vendas"])
 
 @router.post("", response_model=VendaOut, status_code=201)
 def registrar_venda(dados: VendaCreate):
-    """Operação crítica — tudo na MESMA transação (sugestão: função SQL/RPC):
+    """Tudo acontece em UMA transação dentro da função SQL `registrar_venda`:
 
-    1. Ler preços dos produtos e validar estoque (estoque_atual >= quantidade).
-    2. Calcular subtotal, desconto, taxa de entrega (taxa da região do endereço) e total.
-    3. Inserir venda + itens_venda (preco_unitario copiado do produto).
-    4. Baixar estoque e gravar movimentacoes_estoque (tipo=saida, origem=venda).
-    5. Se origem=atendimento: criar entrega pendente (sem entregador).
-    6. Recalcular frequência média do cliente e devolver em `frequencia`.
+        from app.core.db_errors import chamar_rpc
+        res = chamar_rpc(db, "registrar_venda", {"p_dados": {...}, "p_usuario_id": uid})
+        # res = {"venda": {...}, "itens": [...], "entrega": {...} | None}
 
-    Erros: 404 (cliente/produto), 409 (estoque insuficiente), 422 (dados inválidos).
+    A função valida estoque, copia o preço do produto, calcula subtotal/taxa/total,
+    grava venda + itens, baixa 1 CHEIO e sobe 1 VAZIO por unidade (produtos com
+    controla_vazio), grava as movimentações e cria a entrega pendente (atendimento).
+
+    Chaves de p_dados: origem, cliente_id, endereco_id, forma_pagamento,
+    observacao_entregador, itens[{produto_id, quantidade, desconto}].
+
+    Cabe à rota: montar o JSON, chamar a função e devolver o VendaOut.
+    Frequência do cliente: calcule ANTES e DEPOIS da chamada; se o recálculo falhar,
+    devolva frequencia=None (a venda já foi gravada).
+
+    Erros (chamar_rpc converte): 404 (cliente/produto), 409 (estoque insuficiente),
+    422 (dados inválidos).
     """
     raise nao_implementado()
 

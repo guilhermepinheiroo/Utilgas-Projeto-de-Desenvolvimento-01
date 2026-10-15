@@ -15,6 +15,8 @@ class ProdutoBase(BaseModel):
 
 class ProdutoCreate(ProdutoBase):
     estoque_inicial: int = Field(0, ge=0)
+    # None = padrão pela categoria (gás controla vasilhame vazio; água/acessório não)
+    controla_vazio: bool | None = None
 
 
 class ProdutoUpdate(BaseModel):
@@ -23,11 +25,14 @@ class ProdutoUpdate(BaseModel):
     preco: float | None = Field(None, ge=0)
     estoque_minimo: int | None = Field(None, ge=0)
     ativo: bool | None = None
+    controla_vazio: bool | None = None
 
 
 class ProdutoOut(ProdutoBase):
     id: int
-    estoque_atual: int
+    estoque_atual: int  # botijões CHEIOS (unidades à venda)
+    estoque_vazio: int = 0  # vasilhames VAZIOS (só se controla_vazio)
+    controla_vazio: bool = False
     ativo: bool
     status_estoque: Literal["normal", "baixo", "critico"] = "normal"
 
@@ -37,6 +42,7 @@ class MovimentacaoCreate(BaseModel):
     tipo: Literal["entrada", "saida"]
     quantidade: int = Field(gt=0)
     origem: Literal["compra", "troca_vazio", "ajuste"] = "ajuste"
+    estoque: Literal["cheio", "vazio"] = "cheio"
     observacao: str | None = None
 
 
@@ -45,6 +51,7 @@ class MovimentacaoOut(BaseModel):
     produto_id: int
     produto_nome: str
     tipo: Literal["entrada", "saida"]
+    tipo_estoque: Literal["cheio", "vazio"] = "cheio"
     quantidade: int
     origem: str
     venda_id: int | None = None
@@ -64,6 +71,7 @@ class ResumoEstoque(BaseModel):
     """Cards do topo da tela Controle de Estoque."""
 
     total_em_estoque: int
+    total_vazios: int = 0
     entradas_hoje: int
     saidas_mes: int
     itens_com_baixo_estoque: int

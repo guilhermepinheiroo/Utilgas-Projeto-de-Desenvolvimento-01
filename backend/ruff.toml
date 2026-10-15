@@ -4,3 +4,6 @@ line-length = 100
 select = ["E", "F", "I", "B"]
 # B008: Depends() em argumentos é o padrão do FastAPI
 ignore = ["B008"]
+
+[lint.per-file-ignores]
+"tests_sql/*" = ["E501"]
