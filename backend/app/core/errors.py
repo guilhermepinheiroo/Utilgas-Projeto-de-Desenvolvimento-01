@@ -7,3 +7,7 @@ def nao_implementado() -> HTTPException:
         status_code=status.HTTP_501_NOT_IMPLEMENTED,
         detail="Endpoint ainda não implementado",
     )
+
+
+def nao_encontrado(detalhe: str) -> HTTPException:
+    return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detalhe)
