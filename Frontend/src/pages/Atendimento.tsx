@@ -6,7 +6,6 @@ export function Atendimento() {
   const [telefone, setTelefone] = useState("");
 
   function iniciarAtendimento() {
-    // Por enquanto só mostra no console. Depois vai buscar o cliente na API.
     console.log("Iniciar atendimento para:", telefone);
   }
 
