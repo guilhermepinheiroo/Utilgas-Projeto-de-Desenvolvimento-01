@@ -1,6 +1,5 @@
-import type { Periodo, PontoGraficoVendas, Venda } from "../types/dashboard";
-
-const esperar = (ms = 300) => new Promise((resolve) => setTimeout(resolve, ms));
+import type { Periodo, PontoGraficoVendas, Venda } from "../types/Dashboard";
+import { esperar, valorSimulado } from "../utils/Simulacao";
 
 const faturamentoPorPeriodo: Record<Periodo, number> = {
   hoje: 850,
@@ -31,10 +30,6 @@ function gerarDias(quantidade: number): string[] {
   });
 }
 
-// Curva previsível: o mesmo índice sempre gera o mesmo valor
-function valorSimulado(base: number, indice: number, fase: number): number {
-  return Math.round(base + base * 0.4 * Math.sin(indice * 0.9 + fase));
-}
 
 export async function buscarFaturamento(periodo: Periodo): Promise<number> {
   await esperar();

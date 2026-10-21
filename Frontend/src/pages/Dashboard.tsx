@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AbasDashboard, type AbaDashboard } from "../components/dashboard/AbasDashboard";
+import { DashboardEstoque } from "../components/dashboard/estoque/DashboardEstoque";
 import { DashboardVendas } from "../components/dashboard/vendas/DashboardVendas";
 
 export function Dashboard() {
@@ -9,11 +10,7 @@ export function Dashboard() {
     <div className="flex flex-col gap-8 p-8">
       <AbasDashboard abaAtiva={aba} aoMudar={setAba} />
 
-      {aba === "vendas" ? (
-        <DashboardVendas />
-      ) : (
-        <p className="text-neutral-500">Estoque em construção.</p>
-      )}
+      {aba === "vendas" ? <DashboardVendas /> : <DashboardEstoque />}
     </div>
   );
 }
