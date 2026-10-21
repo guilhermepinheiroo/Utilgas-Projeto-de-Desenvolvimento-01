@@ -1,7 +1,33 @@
+import { Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { Sidebar } from "./components/Sidebar";
+import { Atendimento } from "./pages/Atendimento";
+import { Dashboard } from "./pages/Dashboard";
+
+function LayoutPrincipal() {
+  return (
+    <div className="flex h-screen overflow-hidden bg-white">
+      <Sidebar />
+      <main className="flex-1 overflow-y-auto">
+        <Outlet />
+      </main>
+    </div>
+  );
+}
+
 export default function App() {
   return (
-    <h1 className="text-3xl font-bold text-blue-600 p-8">
-      Tailwind funcionando!
-    </h1>
-  )
+    <Routes>
+      <Route element={<LayoutPrincipal />}>
+        <Route path="/" element={<Navigate to="/atendimento" replace />} />
+        <Route path="/atendimento" element={<Atendimento />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/clientes" element={<div>Clientes</div>} />
+        <Route path="/vendas" element={<div>Vendas</div>} />
+        <Route path="/portaria" element={<div>Portaria</div>} />
+        <Route path="/entregas" element={<div>Entregas</div>} />
+        <Route path="/estoque" element={<div>Estoque</div>} />
+      </Route>
+      <Route path="*" element={<Navigate to="/atendimento" replace />} />
+    </Routes>
+  );
 }

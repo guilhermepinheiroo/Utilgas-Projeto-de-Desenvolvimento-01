@@ -1,1 +1,13 @@
 @import "tailwindcss";
+
+@theme {
+  --color-sidebar: #274634;
+  --color-sidebar-ativo: #2f5340;
+  --color-destaque: #f25c05;
+
+
+  --color-azul-card: #326fa6;
+  --color-azul-escuro: #0b3a63;
+  --color-verde-painel: #2e7d4f;
+  --color-menta: #dcefe3;
+}
