@@ -1,4 +1,12 @@
 {
+  "name": "utilgas-projeto",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix Frontend run dev",
+    "ev": "npm --prefix Frontend run dev"
+  },
+  "dependencies": {
+    "react-router-dom": "^7.18.4"
   "devDependencies": {
     "supabase": "^2.121.0"
   }
