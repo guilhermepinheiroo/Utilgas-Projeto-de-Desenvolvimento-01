@@ -2,9 +2,12 @@
 from datetime import date
 from typing import Literal
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
+from supabase import Client
 
-from app.core.errors import nao_implementado
+from app.core.auth import get_current_user, get_db
+from app.core.tempo import hoje
+from app.vendas import filtros, servico
 from app.vendas.schemas import (
     FormaPagamento,
     StatusVenda,
@@ -17,28 +20,33 @@ router = APIRouter(prefix="/vendas", tags=["Vendas"])
 
 
 @router.post("", response_model=VendaOut, status_code=201)
-def registrar_venda(dados: VendaCreate):
-    """Tudo acontece em UMA transação dentro da função SQL `registrar_venda`:
+def registrar_venda(
+    dados: VendaCreate,
+    db: Client = Depends(get_db),
+    usuario: dict = Depends(get_current_user),
+):
+    """Botão "Registrar Venda" do Atendimento e da Portaria.
 
-        from app.core.db_errors import chamar_rpc
-        res = chamar_rpc(db, "registrar_venda", {"p_dados": {...}, "p_usuario_id": uid})
-        # res = {"venda": {...}, "itens": [...], "entrega": {...} | None}
+    Tudo é gravado numa transação só, pela função SQL `registrar_venda`: venda,
+    itens (preço lido do produto), baixa de estoque (cheio -N, vazio +N nos
+    botijões), movimentações e, no atendimento, a entrega pendente. O usuário
+    logado fica gravado na venda (auditoria).
 
-    A função valida estoque, copia o preço do produto, calcula subtotal/taxa/total,
-    grava venda + itens, baixa 1 CHEIO e sobe 1 VAZIO por unidade (produtos com
-    controla_vazio), grava as movimentações e cria a entrega pendente (atendimento).
+    - Atendimento: cliente_id e endereco_id obrigatórios; o endereço precisa ser
+      do cliente e ter região (é a região que define a taxa de entrega).
+    - Portaria: cliente opcional, sem endereço, sem entrega e sem taxa.
+    - Valores: item = quantidade × preço − desconto do item;
+      subtotal = soma dos itens (já com desconto); total = subtotal + taxa.
 
-    Chaves de p_dados: origem, cliente_id, endereco_id, forma_pagamento,
-    observacao_entregador, itens[{produto_id, quantidade, desconto}].
+    A resposta traz também `frequencia` (recálculo do hábito do cliente) e
+    `entrega`, para o modal "Venda registrada". Se o recálculo falhar,
+    `frequencia` vem null: a venda já foi gravada.
 
-    Cabe à rota: montar o JSON, chamar a função e devolver o VendaOut.
-    Frequência do cliente: calcule ANTES e DEPOIS da chamada; se o recálculo falhar,
-    devolva frequencia=None (a venda já foi gravada).
-
-    Erros (chamar_rpc converte): 404 (cliente/produto), 409 (estoque insuficiente),
-    422 (dados inválidos).
+    Erros: 404 (cliente, endereço ou produto), 409 (estoque insuficiente),
+    422 (dados inválidos, produto inativo, desconto maior que o item,
+    endereço sem região).
     """
-    raise nao_implementado()
+    return servico.registrar_venda(db, dados, usuario["id"])
 
 
 @router.get("", response_model=VendasLista)
@@ -49,13 +57,36 @@ def listar_vendas(
     cliente_id: int | None = None,
     forma_pagamento: FormaPagamento | None = None,
     status: StatusVenda | None = None,
-    busca: str | None = Query(None, description="Nome do cliente ou nº do pedido"),
+    busca: str | None = Query(None, description="Nome do cliente ou nº do pedido (123 ou #123)"),
     ordem: Literal["mais_recentes", "mais_antigas", "maior_valor"] = "mais_recentes",
+    pagina: int = Query(1, ge=1),
+    tamanho: int = Query(20, ge=1, le=100),
+    db: Client = Depends(get_db),
 ):
-    """Histórico de Vendas: filtros + totais do período."""
-    raise nao_implementado()
+    """Histórico de Vendas: filtros + totais do período.
+
+    Datas no horário de Brasília; `data_fim` inclusiva. Use `periodo` OU
+    `data_inicio`/`data_fim` (os dois juntos dão 422). `totais` vale para todo o
+    filtro, não só para a página, e ignora vendas canceladas (a não ser com
+    status=cancelada).
+    """
+    inicio, fim = filtros.intervalo_do_filtro(periodo, data_inicio, data_fim, hoje())
+    return servico.listar_vendas(
+        db,
+        inicio=inicio,
+        fim=fim,
+        cliente_id=cliente_id,
+        forma_pagamento=forma_pagamento,
+        status_venda=status,
+        busca=busca,
+        ordem=ordem,
+        pagina=pagina,
+        tamanho=tamanho,
+    )
 
 
 @router.get("/{venda_id}", response_model=VendaOut)
-def obter_venda(venda_id: int):
-    raise nao_implementado()
+def obter_venda(venda_id: int, db: Client = Depends(get_db)):
+    """Venda com itens e nome do cliente (sem `frequencia`/`entrega`, que são
+    só da resposta do POST)."""
+    return servico.obter_venda(db, venda_id)

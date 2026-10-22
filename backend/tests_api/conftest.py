@@ -57,3 +57,34 @@ def regiao(db):
     linha = db.table("regioes").insert({"nome": nome_unico("Reg"), "taxa_entrega": 7.5}).execute()
     yield linha.data[0]
     db.table("regioes").delete().eq("id", linha.data[0]["id"]).execute()
+
+
+@pytest.fixture(scope="session")
+def produtos(db):
+    p13, kit = (
+        db.table("produtos")
+        .insert(
+            [
+                {
+                    "nome": nome_unico("P13"),
+                    "categoria": "gas",
+                    "preco": 115,
+                    "estoque_atual": 500,
+                    "controla_vazio": True,
+                },
+                {
+                    "nome": nome_unico("Kit"),
+                    "categoria": "acessorio",
+                    "preco": 40,
+                    "estoque_atual": 500,
+                    "controla_vazio": False,
+                },
+            ]
+        )
+        .execute()
+        .data
+    )
+    yield {"p13": p13, "kit": kit}
+    ids = [p13["id"], kit["id"]]
+    db.table("movimentacoes_estoque").delete().in_("produto_id", ids).execute()
+    db.table("produtos").delete().in_("id", ids).execute()
