@@ -2,6 +2,7 @@ import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { Sidebar } from "./components/Sidebar";
 import { Atendimento } from "./pages/Atendimento";
 import { Dashboard } from "./pages/Dashboard";
+import { Clientes } from "./pages/Clientes";
 
 function LayoutPrincipal() {
   return (
@@ -21,7 +22,7 @@ export default function App() {
         <Route path="/" element={<Navigate to="/atendimento" replace />} />
         <Route path="/atendimento" element={<Atendimento />} />
         <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/clientes" element={<div>Clientes</div>} />
+        <Route path="/clientes" element={<Clientes />} />
         <Route path="/vendas" element={<div>Vendas</div>} />
         <Route path="/portaria" element={<div>Portaria</div>} />
         <Route path="/entregas" element={<div>Entregas</div>} />

@@ -1,5 +1,5 @@
-import iconeSetaVerde from "../../../assents/icon-seta-verde.png";
-import iconeSetaVermelha from "../../../assents/icon-seta-vermelha.png";
+import iconeSetaVerde from "../../../assets/icon-seta-verde.png";
+import iconeSetaVermelha from "../../../assets/icon-seta-vermelha.png";
 
 export function VariacaoMensal({ percentual }: { percentual: number }) {
   const positiva = percentual >= 0;
