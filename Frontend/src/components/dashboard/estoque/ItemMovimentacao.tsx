@@ -3,8 +3,8 @@ import { iconePorProduto } from "../../../constants/IconesEstoque";
 import { catalogoProdutos } from "../../../constants/ProdutosEstoque";
 import type { Movimentacao, TipoMovimentacao } from "../../../types/Estoque";
 
-import iconeSetaVerde from "../../../assents/icon-seta-verde.png";
-import iconeSetaVermelha from "../../../assents/icon-seta-vermelha.png";
+import iconeSetaVerde from "../../../assets/icon-seta-verde.png";
+import iconeSetaVermelha from "../../../assets/icon-seta-vermelha.png";
 
 const configPorTipo: Record<TipoMovimentacao, { texto: string; icone: string }> = {
   entrada: { texto: "Entrada", icone: iconeSetaVerde },

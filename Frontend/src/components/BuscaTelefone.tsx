@@ -1,4 +1,4 @@
-import iconeBusca from "../assents/busca.png";
+import iconeBusca from "../assets/busca.png";
 import { formatarTelefone } from "../utils/FormatacaoTelefone";
 
 interface CampoTelefoneProps {

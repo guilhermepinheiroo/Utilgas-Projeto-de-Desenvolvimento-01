@@ -17,7 +17,7 @@ export function Atendimento() {
         type="button"
         onClick={iniciarAtendimento}
         disabled={!telefoneCompleto(telefone)}
-        className="rounded-md bg-neutral-200 px-8 py-2.5 text-sm transition-colors hover:bg-neutral-300 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+        className="cursor-pointer rounded-md bg-neutral-200 px-8 py-2.5 text-sm transition-colors hover:bg-neutral-300 disabled:cursor-not-allowed disabled:opacity-50"
       >
         Iniciar Atendimento
       </button>
