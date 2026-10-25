@@ -9,6 +9,7 @@ from app.entregas.router import router as entregas_router
 from app.produtos.router import estoque_router
 from app.produtos.router import router as produtos_router
 from app.vendas.router import router as vendas_router
+from app.dashboard.router import router as dashboard_router
 
 app = FastAPI(
     title="UtilGás API",
@@ -47,5 +48,6 @@ for r in (
     entregas_router,
     entregadores_router,
     regioes_router,
+   dashboard_router,
 ):
     app.include_router(r, dependencies=protegido)

@@ -23,7 +23,7 @@ export function AbasDashboard({ abaAtiva, aoMudar }: AbasDashboardProps) {
             role="tab"
             aria-selected={ativa}
             onClick={() => aoMudar(aba.valor)}
-            className={`rounded-md px-10 py-3 text-lg font-medium transition-colors ${
+            className={`cursor-pointer rounded-md px-10 py-3 text-lg font-medium transition-colors ${
               ativa
                 ? "bg-verde-painel text-white"
                 : "bg-menta text-verde-painel hover:bg-menta/70"
