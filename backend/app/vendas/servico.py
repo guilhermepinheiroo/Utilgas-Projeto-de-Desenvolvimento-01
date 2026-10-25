@@ -7,7 +7,7 @@ from app.clientes.indicadores import recalcular_apos_venda
 from app.clientes.servico import SELECT_COMPRAS, com_compras_validas, datas_de_compra
 from app.core.db_errors import chamar_rpc
 from app.core.errors import nao_encontrado
-from app.core.tempo import data_local
+from app.core.tempo import data_local, para_iso_utc
 from app.vendas.filtros import interpretar_busca
 from app.vendas.schemas import VendaCreate, VendaOut, VendaResumo, VendasLista
 
@@ -74,8 +74,8 @@ def listar_vendas(
         db,
         "historico_vendas",
         {
-            "p_inicio": inicio.isoformat() if inicio else None,
-            "p_fim": fim.isoformat() if fim else None,
+            "p_inicio": para_iso_utc(inicio) if inicio else None,
+            "p_fim": para_iso_utc(fim) if fim else None,
             "p_cliente_id": cliente_id,
             "p_forma_pagamento": forma_pagamento,
             "p_status": status_venda,

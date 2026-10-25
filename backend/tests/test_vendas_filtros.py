@@ -3,7 +3,7 @@ from datetime import date, datetime
 import pytest
 from fastapi import HTTPException
 
-from app.core.tempo import FUSO_DE_BRASILIA
+from app.core.tempo import FUSO
 from app.vendas.filtros import interpretar_busca, intervalo_do_filtro
 
 HOJE = date(2026, 10, 20)
@@ -11,7 +11,7 @@ AMANHA = date(2026, 10, 21)
 
 
 def meia_noite(dia: date) -> datetime:
-    return datetime(dia.year, dia.month, dia.day, tzinfo=FUSO_DE_BRASILIA)
+    return datetime(dia.year, dia.month, dia.day, tzinfo=FUSO)
 
 
 @pytest.mark.parametrize(

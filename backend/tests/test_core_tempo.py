@@ -2,7 +2,7 @@ from datetime import date
 
 import pytest
 
-from app.core.tempo import data_local, inicio_do_dia
+from app.core.tempo import data_local, meia_noite_de
 
 
 @pytest.mark.parametrize(
@@ -22,5 +22,5 @@ def test_data_local_recusa_horario_sem_fuso():
         data_local("2026-10-16T01:30:00")
 
 
-def test_inicio_do_dia_e_meia_noite_em_brasilia():
-    assert inicio_do_dia(date(2026, 10, 20)).isoformat() == "2026-10-20T00:00:00-03:00"
+def test_meia_noite_de_um_dia_em_brasilia():
+    assert meia_noite_de(date(2026, 10, 20)).isoformat() == "2026-10-20T00:00:00-03:00"

@@ -3,7 +3,7 @@ from datetime import date, datetime, timedelta
 
 from fastapi import HTTPException
 
-from app.core.tempo import inicio_do_dia
+from app.core.tempo import meia_noite_de
 
 DIAS_DO_PERIODO = {"hoje": 1, "7d": 7, "30d": 30}
 
@@ -18,8 +18,8 @@ def intervalo_do_filtro(
         data_fim = hoje
     if data_inicio and data_fim and data_inicio > data_fim:
         raise HTTPException(422, "data_inicio é depois de data_fim")
-    inicio = inicio_do_dia(data_inicio) if data_inicio else None
-    fim_exclusivo = inicio_do_dia(data_fim + timedelta(days=1)) if data_fim else None
+    inicio = meia_noite_de(data_inicio) if data_inicio else None
+    fim_exclusivo = meia_noite_de(data_fim + timedelta(days=1)) if data_fim else None
     return inicio, fim_exclusivo
 
 

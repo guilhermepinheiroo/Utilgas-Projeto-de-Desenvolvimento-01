@@ -1,12 +1,12 @@
 import { NavLink } from "react-router-dom";
 
-import iconeAtendimento from "../assents/icon-atendimento-sidebar.png";
-import iconeDashboard from "../assents/icon-dashboard-sidebar.png";
-import iconeClientes from "../assents/icon-clientes-sidebar.png";
-import iconeVendas from "../assents/icon-vendar-sidebar.png";
-import iconeEntregas from "../assents/icon-entregar-sidebar.png";
-import iconeEstoque from "../assents/icon-estoque-sidebar.png";
-import iconePerfil from "../assents/icon-portaria-sidebar.png";
+import iconeAtendimento from "../assets/icon-atendimento-sidebar.png";
+import iconeDashboard from "../assets/icon-dashboard-sidebar.png";
+import iconeClientes from "../assets/icon-clientes-sidebar.png";
+import iconeVendas from "../assets/icon-vendar-sidebar.png";
+import iconeEntregas from "../assets/icon-entregar-sidebar.png";
+import iconeEstoque from "../assets/icon-estoque-sidebar.png";
+import iconePerfil from "../assets/icon-portaria-sidebar.png";
 
 interface ItemMenuProps {
   rotulo: string;
@@ -29,7 +29,7 @@ function ItemMenu({ rotulo, caminho, icone }: ItemMenuProps) {
     <NavLink
       to={caminho}
       className={({ isActive }) =>
-        `relative flex items-center gap-3 rounded-md px-3 py-2 text-xs text-white transition-colors ${
+        `relative flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-xs text-white transition-colors ${
           isActive
             ? "bg-sidebar-ativo"
             : "opacity-80 hover:bg-sidebar-ativo/50 hover:opacity-100"

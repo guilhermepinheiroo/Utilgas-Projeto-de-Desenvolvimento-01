@@ -48,7 +48,7 @@ export function SeletorSegmentado<T extends string>({
             role="radio"
             aria-checked={selecionado}
             onClick={() => aoAlterar(opcao.valor)}
-            className={`rounded-full px-4 py-1 text-xs font-medium transition-colors ${
+            className={`cursor-pointer rounded-full px-4 py-1 text-xs font-medium transition-colors ${
               selecionado ? estilo.ativo : estilo.inativo
             }`}
           >
