@@ -8,3 +8,7 @@ const formatador = new Intl.NumberFormat("pt-BR", {
 export function formatarMoeda(valor: number): string {
   return formatador.format(valor);
 }
+
+export function formatarCentavos(valor: number): string {
+  return formatarMoeda(valor / 100);
+}
