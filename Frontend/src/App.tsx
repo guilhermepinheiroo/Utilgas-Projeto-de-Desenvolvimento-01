@@ -6,6 +6,7 @@ import { Clientes } from "./pages/Clientes";
 import { Vendas } from "./pages/Vendas";
 import { Portaria } from "./pages/Portaria";
 import { Entregas } from "./pages/Entregas";
+import { Estoque } from "./pages/Estoque";
 
 function LayoutPrincipal() {
   return (
@@ -29,7 +30,7 @@ export default function App() {
         <Route path="/vendas" element={<Vendas />} />
         <Route path="/portaria" element={<Portaria />} />
         <Route path="/entregas" element={<Entregas />} />
-        <Route path="/estoque" element={<div>Estoque</div>} />
+        <Route path="/estoque" element={<Estoque />} />
       </Route>
       <Route path="*" element={<Navigate to="/atendimento" replace />} />
     </Routes>

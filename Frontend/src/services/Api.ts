@@ -62,6 +62,8 @@ export const api = {
     requisitar<T>("POST", caminho, undefined, corpo),
   patch: <T = void>(caminho: string, corpo?: unknown) =>
     requisitar<T>("PATCH", caminho, undefined, corpo),
+  delete: <T = void>(caminho: string) =>
+    requisitar<T>("DELETE", caminho),
 };
 
 // Mensagem pronta para mostrar ao usuário, venha o erro do servidor ou da rede
