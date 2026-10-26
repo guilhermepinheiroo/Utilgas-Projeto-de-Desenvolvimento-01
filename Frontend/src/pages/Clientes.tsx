@@ -6,7 +6,7 @@ import {
   type AcaoRapida,
 } from "../components/clientes/AcoesRapidas";
 import { TabelaClientes } from "../components/clientes/TabelaClientes";
-import { CampoBusca } from "../components/clientes/CampoBusca";
+import { CampoBusca } from "../components/CampoBusca";
 import { CardIndicador } from "../components/clientes/CardIndicador";
 import { Filtro } from "../components/clientes/Filtro";
 import { ModalEditarCliente } from "../components/clientes/ModalEditarCliente";

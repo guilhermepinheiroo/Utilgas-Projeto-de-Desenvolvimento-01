@@ -118,3 +118,6 @@ export async function buscarResumoClientes(): Promise<ResumoClientes> {
     },
   };
 }
+export function obterClienteMock(indice: number): Cliente {
+  return clientes[indice % clientes.length];
+}
