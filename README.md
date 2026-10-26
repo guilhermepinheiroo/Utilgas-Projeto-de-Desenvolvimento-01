@@ -175,6 +175,19 @@ pytest tests_sql -v         # dentro de backend/
 
 Sem `TEST_DATABASE_URL` esses testes são ignorados.
 
+Testes da API contra o mesmo Supabase **local** (rotas de verdade, sem mocks; o login é simulado):
+
+```bash
+npx supabase status -o env   # na raiz: copie API_URL e SERVICE_ROLE_KEY
+export TEST_SUPABASE_URL="http://127.0.0.1:54321"
+export TEST_SUPABASE_SERVICE_KEY="<SERVICE_ROLE_KEY>"
+pytest tests_api -v          # dentro de backend/
+```
+
+Sem essas duas variáveis eles são ignorados, e se recusam a rodar contra um endereço que não seja `localhost`.
+
+> As portas do Supabase local já estão ocupadas por outro projeto? Rode `npx supabase stop` nele, ou troque as portas no `supabase/config.toml` **só na sua máquina** (não faça commit dessa mudança).
+
 ### Como implementar uma rota
 
 As rotas já existem no contrato, mas devolvem **501** até serem implementadas.
@@ -190,7 +203,7 @@ As rotas já existem no contrato, mas devolvem **501** até serem implementadas.
 - **Preço do produto e taxa de entrega são calculados no servidor**, nunca enviados pelo front-end.
 - `POST /vendas` roda tudo na **mesma transação**: venda, itens, baixa de estoque e criação da entrega.
 - **Estoque de botijões (cheio e vazio):** toda venda de produto com `controla_vazio` (gás) baixa 1 unidade **cheia** e soma 1 **vazia**; cancelar a venda desfaz. Quem faz isso é o banco, pelas funções SQL `registrar_venda`, `cancelar_venda` e `movimentar_estoque` (chame com `chamar_rpc` de `app/core/db_errors.py`, que converte os erros em 404/409/422). Nunca altere `estoque_atual`/`estoque_vazio` direto pela API.
-- Telefone é guardado **somente com dígitos** (ex.: `5398812447`).
+- Telefone é guardado **somente com dígitos** (ex.: `53988124477`; celular sem o 9 ganha o 9).
 - Mudou o formato de uma rota? **Avise o front-end** antes de mesclar.
 
 ---
