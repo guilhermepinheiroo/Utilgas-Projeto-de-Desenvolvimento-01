@@ -71,9 +71,10 @@ class VendaOut(BaseModel):
     total: float
     status: StatusVenda
     itens: list[ItemVendaOut]
-    # Preenchidos apenas na resposta do POST /vendas:
-    frequencia: FrequenciaRecalculada | None = None
-    entrega: EntregaCriada | None = None
+    frequencia: FrequenciaRecalculada | None = Field(
+        None, description="Só na resposta do POST /vendas"
+    )
+    entrega: EntregaCriada | None = Field(None, description="Só na resposta do POST /vendas")
 
 
 class VendaResumo(BaseModel):
@@ -81,14 +82,20 @@ class VendaResumo(BaseModel):
 
     id: int
     criado_em: datetime
+    cliente_id: int | None = None
     cliente_nome: str | None = None
-    itens_resumo: list[str]
+    itens_resumo: list[str] = Field(examples=[["2x Botijão P13 - Recarga"]])
     forma_pagamento: FormaPagamento
     total: float
     status: StatusVenda
 
 
 class TotaisVendas(BaseModel):
+    """Calculados no banco, sobre todo o filtro (não só a página).
+
+    Vendas canceladas não entram, a não ser que o filtro seja status=cancelada.
+    """
+
     total_vendas: float
     quantidade_vendas: int
     clientes_atendidos: int
@@ -98,3 +105,6 @@ class TotaisVendas(BaseModel):
 class VendasLista(BaseModel):
     totais: TotaisVendas
     itens: list[VendaResumo]
+    total: int = Field(description="Vendas que passaram no filtro (para paginar)")
+    pagina: int
+    tamanho: int
