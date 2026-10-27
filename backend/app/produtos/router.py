@@ -37,6 +37,15 @@ def _buscar_produto(db: Client, produto_id: int) -> dict:
     return rows[0]
 
 
+def _checar_nome_unico(db: Client, nome: str, ignorar_id: int | None = None) -> None:
+    def normalizar(texto: str) -> str:
+        return " ".join(texto.split()).casefold()
+
+    ativos = db.table("produtos").select("id, nome").eq("ativo", True).execute().data
+    if any(p["id"] != ignorar_id and normalizar(p["nome"]) == normalizar(nome) for p in ativos):
+        raise HTTPException(409, f"Já existe um produto chamado {nome}")
+
+
 def _ts(valor: str) -> datetime:
     return datetime.fromisoformat(valor.replace("Z", "+00:00"))
 
@@ -88,6 +97,7 @@ def criar_produto(
     controla_vazio = (
         dados.controla_vazio if dados.controla_vazio is not None else dados.categoria == "gas"
     )
+    _checar_nome_unico(db, dados.nome)
     novo = {
         "nome": dados.nome.strip(),
         "categoria": dados.categoria,
@@ -132,6 +142,8 @@ def atualizar_produto(produto_id: int, dados: ProdutoUpdate, db: Client = Depend
     campos = {k: v for k, v in campos.items() if v is not None}
 
     _buscar_produto(db, produto_id)
+    if "nome" in campos:
+        _checar_nome_unico(db, campos["nome"], ignorar_id=produto_id)
     try:
         rows = db.table("produtos").update(campos).eq("id", produto_id).execute().data
     except APIError as e:
@@ -278,4 +290,4 @@ def registrar_movimentacao(
         .execute()
         .data[0]
     )
-    return _movimentacao_out(row)
+    return _movimentacao_out(row)

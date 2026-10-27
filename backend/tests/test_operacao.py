@@ -231,3 +231,21 @@ def test_dashboard_estoque_valor_total(client):
     r = client.get("/dashboard/estoque")
     assert r.json()["valor_em_estoque"] == 40 * 115 + 10 * 18
     assert r.json()["produtos_em_alerta"] == 1
+
+# ------------------------------------------------------------------ produtos
+
+
+def test_produto_com_nome_repetido_da_409(client):
+    usar_db(FakeDB([{"id": 1, "nome": "Botijão P13 - Recarga"}]))
+    corpo = {"nome": "  botijão p13 -  recarga ", "categoria": "gas", "preco": 115}
+    assert client.post("/produtos", json=corpo).status_code == 409
+
+
+def test_renomear_para_nome_existente_da_409(client):
+    usar_db(
+        FakeDB(
+            [{"id": 2, "nome": "Água 20L", "estoque_atual": 1, "estoque_minimo": 0}],  # busca
+            [{"id": 1, "nome": "Botijão P13"}, {"id": 2, "nome": "Água 20L"}],  # ativos
+        )
+    )
+    assert client.put("/produtos/2", json={"nome": "botijão p13"}).status_code == 409
