@@ -1,7 +1,7 @@
 interface CardIndicadorProps {
   titulo: string;
   valor: string;
-  variacao: string;
+  variacao?: string;
   descricao: string;
   tendencia: "positiva" | "negativa";
   iconeTendencia: string;
@@ -32,14 +32,18 @@ export function CardIndicador({
       <p className="mt-2 text-2xl font-bold text-neutral-900">{valor}</p>
 
       <p className="mt-1 flex items-center gap-1 text-[11px]">
-        <img src={iconeTendencia} alt="" className="size-3 object-contain" />
-        <span
-          className={`font-semibold ${
-            tendencia === "positiva" ? "text-green-600" : "text-red-600"
-          }`}
-        >
-          {variacao}
-        </span>
+        {variacao && (
+          <>
+            <img src={iconeTendencia} alt="" className="size-3 object-contain" />
+            <span
+              className={`font-semibold ${
+                tendencia === "positiva" ? "text-green-600" : "text-red-600"
+              }`}
+            >
+              {variacao}
+            </span>
+          </>
+        )}
         <span className="text-neutral-500">{descricao}</span>
       </p>
     </article>

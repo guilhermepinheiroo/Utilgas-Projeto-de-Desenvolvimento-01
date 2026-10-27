@@ -1,15 +1,4 @@
-export type IdProdutoEstoque =
-  | "botijaoP5"
-  | "botijaoP13"
-  | "botijaoP20"
-  | "botijaoP45"
-  | "agua5l"
-  | "agua10l"
-  | "agua20l"
-  | "valvula"
-  | "mangueira";
-
-export type FiltroEstoque = "todos" | IdProdutoEstoque;
+export type FiltroEstoque = "todos" | string; // "todos" ou o id do produto
 
 export type CategoriaGrafico = "agua" | "gas";
 
@@ -17,15 +6,17 @@ export type TipoMovimentacao = "entrada" | "saida";
 
 export interface ResumoEstoque {
   quantidade: number;
-  variacaoMensal: number; // em %, pode ser negativa
+  variacaoMensal: number | null; // em %, pode ser negativa
 }
 
 export interface Movimentacao {
   id: string;
-  produtoId: IdProdutoEstoque;
+  produtoNome: string;
+  categoria: string | null;
   quantidade: number;
   horario: string;
   tipo: TipoMovimentacao;
+  tipoEstoque: "cheio" | "vazio";
 }
 
 export interface PontoGraficoEstoque {

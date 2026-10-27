@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { BadgeStatusEntrega } from "./BadgeStatusEntrega";
 import { Dialogo } from "../Dialogo";
-import { catalogoProdutos } from "../../constants/ProdutosEstoque";
 import { useAcao } from "../../hooks/UsenAcao";
 import { cancelarEntrega, finalizarEntrega, trocarEntregador } from "../../services/Entregas";
 import type { Entrega, Entregador } from "../../types/Entregas";
@@ -34,7 +33,7 @@ function Campo({ rotulo, children }: { rotulo: string; children: ReactNode }) {
 
 interface EtapaAcoesProps {
   entrega: Entrega;
-  entregadorAtual: Entregador;
+  entregadorAtual: Entregador | null;
   entregadores: Entregador[];
   erroEntregadores: boolean;
   executando: boolean;
@@ -57,13 +56,14 @@ function EtapaAcoes({
   aoSalvarEntregador,
   aoPedirCancelamento,
 }: EtapaAcoesProps) {
-  const [escolhido, setEscolhido] = useState(entregadorAtual.id);
-  const { hora } = formatarDataHora(entrega.horarioPrevisto);
+  const [escolhido, setEscolhido] = useState(entregadorAtual?.id ?? "");
+  const { hora } = formatarDataHora(entrega.criadoEm);
 
   // Garante que o entregador atual sempre aparece na lista
-  const opcoes = entregadores.some((e) => e.id === entregadorAtual.id)
-    ? entregadores
-    : [entregadorAtual, ...entregadores];
+  const opcoes =
+    !entregadorAtual || entregadores.some((e) => e.id === entregadorAtual.id)
+      ? entregadores
+      : [entregadorAtual, ...entregadores];
 
   return (
     <div className="flex flex-col gap-5">
@@ -71,7 +71,7 @@ function EtapaAcoes({
         <div className="flex flex-wrap items-center gap-3">
           <BadgeStatusEntrega status={entrega.status} />
           <span className="text-xs text-neutral-500">
-            Horário previsto: <strong className="text-neutral-900">{hora}</strong>
+            Pedido às <strong className="text-neutral-900">{hora}</strong>
           </span>
           <span className="text-xs text-neutral-500">Pedido #{entrega.numeroPedido}</span>
         </div>
@@ -97,16 +97,23 @@ function EtapaAcoes({
 
         <Campo rotulo="Item / Produto">
           <ul>
-            {entrega.itens.map((item) => (
-              <li key={item.produtoId} className="font-semibold">
-                {item.quantidade}x {catalogoProdutos[item.produtoId].nome}
+            {entrega.itens.map((item, indice) => (
+              <li key={`${item.produtoNome}-${indice}`} className="font-semibold">
+                {item.quantidade}x {item.produtoNome}
               </li>
             ))}
           </ul>
+          {entrega.observacao && (
+            <p className="mt-1 text-[11px] text-neutral-500">Obs.: {entrega.observacao}</p>
+          )}
         </Campo>
 
         <Campo rotulo="Entregador atual">
-          <p className="font-semibold text-verde-painel">{entregadorAtual.nome}</p>
+          {entregadorAtual ? (
+            <p className="font-semibold text-verde-painel">{entregadorAtual.nome}</p>
+          ) : (
+            <p className="font-semibold text-orange-600">Ainda não atribuído</p>
+          )}
         </Campo>
       </dl>
 
@@ -118,7 +125,8 @@ function EtapaAcoes({
       <button
         type="button"
         onClick={aoFinalizar}
-        disabled={executando}
+        disabled={executando || !entregadorAtual}
+        title={entregadorAtual ? undefined : "Atribua um entregador antes de finalizar"}
         className="w-full rounded-md bg-sidebar py-4 text-sm font-semibold text-white transition-colors hover:bg-sidebar-ativo disabled:cursor-not-allowed disabled:opacity-50"
       >
         Finalizar entrega
@@ -127,7 +135,9 @@ function EtapaAcoes({
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-neutral-200 bg-neutral-50 p-4">
         <div className="leading-tight">
           <p className="text-xs font-semibold">Escolha o Entregador</p>
-          <p className="text-[11px] text-neutral-500">Trocar responsável atual da entrega</p>
+          <p className="text-[11px] text-neutral-500">
+            {entregadorAtual ? "Trocar responsável atual da entrega" : "Atribuir quem vai entregar"}
+          </p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -138,6 +148,7 @@ function EtapaAcoes({
             disabled={executando}
             className="rounded border border-neutral-300 bg-white px-2 py-1 text-xs"
           >
+            {!entregadorAtual && <option value="">Selecione</option>}
             {opcoes.map((entregador) => (
               <option key={entregador.id} value={entregador.id}>
                 {entregador.nome}
@@ -148,7 +159,7 @@ function EtapaAcoes({
           <button
             type="button"
             onClick={() => aoSalvarEntregador(escolhido)}
-            disabled={executando || escolhido === entregadorAtual.id}
+            disabled={executando || !escolhido || escolhido === entregadorAtual?.id}
             className="rounded bg-sidebar px-4 py-1.5 text-[10px] font-bold uppercase text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
             Salvar
@@ -354,7 +365,7 @@ export function ModalAcoesEntrega({
       tituloVisivel={tituloVisivel}
       aoFechar={aoFechar}
     >
-      {entrega && entregadorAtual && etapa === "acoes" && (
+      {entrega && etapa === "acoes" && (
         <EtapaAcoes
           entrega={entrega}
           entregadorAtual={entregadorAtual}

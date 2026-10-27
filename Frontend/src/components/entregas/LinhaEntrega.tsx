@@ -1,6 +1,5 @@
 import { BadgeStatusEntrega } from "./BadgeStatusEntrega";
-import { iconePorProduto } from "../../constants/IconesEstoque";
-import { catalogoProdutos } from "../../constants/ProdutosEstoque";
+import { iconeDaCategoria } from "../../constants/IconesEstoque";
 import type { Entrega } from "../../types/Entregas";
 import { formatarDataHora } from "../../utils/FormataData";
 import { formatarCentavos } from "../../utils/FormatacaoMoeda";
@@ -14,7 +13,7 @@ interface LinhaEntregaProps {
 }
 
 export function LinhaEntrega({ entrega, aoAbrirAcoes }: LinhaEntregaProps) {
-  const { hora } = formatarDataHora(entrega.horarioPrevisto);
+  const { hora } = formatarDataHora(entrega.criadoEm);
   const podeAgir = entrega.status === "pendente";
 
   return (
@@ -28,30 +27,32 @@ export function LinhaEntrega({ entrega, aoAbrirAcoes }: LinhaEntregaProps) {
         <p className="text-[11px] text-neutral-400">{formatarTelefone(entrega.cliente.whatsapp)}</p>
       </td>
 
-      <td className="px-4 py-3 text-neutral-800">{entrega.entregador.nome}</td>
+      <td className="px-4 py-3 text-neutral-800">
+        {entrega.entregador?.nome ?? <span className="text-orange-600">Não atribuído</span>}
+      </td>
 
-      <td className="max-w-44 px-4 py-3 text-neutral-800">{entrega.cliente.endereco}</td>
+      <td className="max-w-44 px-4 py-3 text-neutral-800">
+        {entrega.cliente.endereco}
+        {entrega.cliente.bairro && (
+          <span className="block text-[11px] text-neutral-400">{entrega.cliente.bairro}</span>
+        )}
+      </td>
 
       <td className="px-4 py-3">
         <ul className="flex flex-col gap-1.5">
-          {entrega.itens.map((item) => {
-            const produto = catalogoProdutos[item.produtoId];
-            const icone = produto.tipoIcone ? iconePorProduto[produto.tipoIcone] : undefined;
-
-            return (
-              <li key={item.produtoId} className="flex items-center gap-2">
-                {icone ? (
-                  <img src={icone} alt="" className="size-5 shrink-0 object-contain" />
-                ) : (
-                  <span className="size-5 shrink-0" aria-hidden />
-                )}
-                <span className="text-[11px] leading-tight text-neutral-800">
-                  <span className="block">{item.quantidade}x</span>
-                  <span className="block">{produto.nome}</span>
-                </span>
-              </li>
-            );
-          })}
+          {entrega.itens.map((item, indice) => (
+            <li key={`${item.produtoNome}-${indice}`} className="flex items-center gap-2">
+              <img
+                src={iconeDaCategoria(item.categoria)}
+                alt=""
+                className="size-5 shrink-0 object-contain"
+              />
+              <span className="text-[11px] leading-tight text-neutral-800">
+                <span className="block">{item.quantidade}x</span>
+                <span className="block">{item.produtoNome}</span>
+              </span>
+            </li>
+          ))}
         </ul>
       </td>
 

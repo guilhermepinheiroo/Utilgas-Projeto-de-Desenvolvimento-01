@@ -33,7 +33,7 @@ export function LinhaCliente({ cliente, aoEditar, aoExcluir }: LinhaClienteProps
       </td>
 
       <td title={cliente.endereco} className="max-w-36 truncate px-4 py-3 text-neutral-500">
-        {cliente.endereco}
+        {cliente.endereco || "—"}
       </td>
 
       <td className="whitespace-nowrap px-4 py-3 text-neutral-700">

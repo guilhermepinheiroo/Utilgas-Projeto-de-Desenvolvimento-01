@@ -83,7 +83,7 @@ export function Vendas() {
         larguraTotal
         valor={historico.filtros.busca}
         aoAlterar={(valor) => historico.alterarFiltro("busca", valor)}
-        placeholder="Buscar por cliente, produto..."
+        placeholder="Buscar por cliente, produto, CPF ou nº do pedido..."
         rotuloAcessivel="Buscar vendas"
       />
 
@@ -119,6 +119,22 @@ export function Vendas() {
           iconeSeta={iconeSetaBaixo}
         />
       </div>
+
+      {historico.erro && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
+          <span>{historico.erro}</span>
+          <button
+            type="button"
+            onClick={historico.recarregar}
+            className="rounded-md border border-red-300 px-3 py-1 text-xs font-medium hover:bg-red-100"
+          >
+            Tentar de novo
+          </button>
+        </div>
+      )}
 
       <section aria-label="Lista de vendas" className="flex flex-col gap-4">
         <ul
@@ -158,7 +174,14 @@ export function Vendas() {
         aoFechar={() => setSelecionandoCliente(false)}
       />
 
-      <ModalDetalheVenda venda={vendaAberta} aoFechar={() => setVendaAberta(null)} />
+      <ModalDetalheVenda
+        venda={vendaAberta}
+        aoFechar={() => setVendaAberta(null)}
+        aoAtualizar={(venda) => {
+          setVendaAberta(venda);
+          historico.recarregar();
+        }}
+      />
     </div>
   );
 }

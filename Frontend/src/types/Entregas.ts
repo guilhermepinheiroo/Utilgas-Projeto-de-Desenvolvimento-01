@@ -1,5 +1,3 @@
-import type { IdProdutoEstoque } from "./Estoque";
-
 export type StatusEntrega = "pendente" | "entregue" | "cancelada";
 export type FiltroStatusEntrega = "todos" | StatusEntrega;
 
@@ -10,7 +8,6 @@ export interface Entregador {
 
 // O endereço vem do cadastro do cliente
 export interface ClienteDaEntrega {
-  id: string;
   nome: string;
   whatsapp: string; // só dígitos
   endereco: string;
@@ -18,7 +15,8 @@ export interface ClienteDaEntrega {
 }
 
 export interface ItemDaEntrega {
-  produtoId: IdProdutoEstoque;
+  produtoNome: string;
+  categoria: string | null;
   quantidade: number;
 }
 
@@ -27,9 +25,11 @@ export interface Entrega {
   numeroPedido: number;
   status: StatusEntrega;
   cliente: ClienteDaEntrega;
-  entregador: Entregador;
+  entregador: Entregador | null; // null = ainda não atribuída
   itens: ItemDaEntrega[];
-  horarioPrevisto: string; // ISO: "2026-10-26T16:30:00"
+  criadoEm: string; // ISO (hora do pedido)
+  entregueEm: string | null;
+  observacao: string | null;
   totalCentavos: number;
 }
 

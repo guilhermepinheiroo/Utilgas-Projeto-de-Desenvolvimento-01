@@ -1,13 +1,13 @@
 """Módulo Entregas, Entregadores e Regiões — responsável: Back-end 2."""
 import re
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from supabase import Client
 
 from app.core.auth import get_current_user, get_db
 from app.core.db_errors import chamar_rpc
-from app.core.tempo import inicio_do_dia, para_iso_utc
+from app.core.tempo import agora, meia_noite, para_iso_utc
 from app.entregas.schemas import (
     EntregadorCreate,
     EntregadorOut,
@@ -25,8 +25,8 @@ regioes_router = APIRouter(prefix="/regioes", tags=["Regiões"])
 
 # Uma consulta só traz entrega + entregador + endereço + venda + cliente + itens.
 SELECT_ENTREGA = (
-    "*, entregadores(nome), enderecos(endereco, complemento), "
-    "vendas(total, clientes(nome, telefone), itens_venda(quantidade, produtos(nome)))"
+    "*, entregadores(nome), enderecos(endereco, complemento, bairro), "
+    "vendas(total, clientes(nome, telefone), itens_venda(quantidade, produtos(nome, categoria)))"
 )
 
 
@@ -48,9 +48,11 @@ def _entrega_out(row: dict) -> EntregaOut:
         entregador_id=row["entregador_id"],
         entregador_nome=entregador.get("nome"),
         endereco=endereco,
+        bairro=end.get("bairro"),
         itens=[
             EntregaItem(
                 produto_nome=(i.get("produtos") or {}).get("nome", ""),
+                categoria=(i.get("produtos") or {}).get("categoria"),
                 quantidade=i["quantidade"],
             )
             for i in venda.get("itens_venda") or []
@@ -70,15 +72,22 @@ def _buscar_entrega(db: Client, entrega_id: int) -> dict:
 
 
 def _contar(db: Client, **filtros) -> int:
-    q = db.table("entregas").select("id", count="exact")
+    q = db.table("entregas").select("id", count="exact").limit(1)
     for campo, valor in filtros.items():
         if campo.endswith("__gte"):
             q = q.gte(campo[:-5], valor)
         elif campo.endswith("__lt"):
             q = q.lt(campo[:-4], valor)
+        elif campo.endswith("__neq"):
+            q = q.neq(campo[:-5], valor)
         else:
             q = q.eq(campo, valor)
     return q.execute().count or 0
+
+
+def _dia_utc(dia: date) -> tuple[str, str]:
+    """Início e fim (exclusivo) do dia de Brasília, em UTC."""
+    return para_iso_utc(meia_noite(dia)), para_iso_utc(meia_noite(dia + timedelta(days=1)))
 
 
 # ---------------------------------------------------------------- entregas
@@ -89,10 +98,14 @@ def listar_entregas(
     status: StatusEntrega | None = None,
     entregador_id: int | None = None,
     busca: str | None = None,
+    data: date | None = Query(None, description="Dia (Brasília) em que a entrega foi criada"),
     db: Client = Depends(get_db),
 ):
-    """Filtros da tela: busca (cliente, endereço, pedido), entregador e status."""
+    """Filtros da tela: data, busca (cliente, endereço, pedido), entregador e status."""
     q = db.table("entregas").select(SELECT_ENTREGA)
+    if data:
+        inicio, fim = _dia_utc(data)
+        q = q.gte("criado_em", inicio).lt("criado_em", fim)
     if status:
         q = q.eq("status", status)
     if entregador_id is not None:
@@ -113,19 +126,28 @@ def listar_entregas(
 
 
 @router.get("/resumo", response_model=ResumoEntregas)
-def resumo_entregas(db: Client = Depends(get_db)):
-    hoje = para_iso_utc(inicio_do_dia())
-    ontem = para_iso_utc(inicio_do_dia(1))
+def resumo_entregas(
+    data: date | None = Query(None, description="Padrão: hoje (Brasília)"),
+    db: Client = Depends(get_db),
+):
+    """Cards do topo para o dia escolhido. Canceladas não entram no total."""
+    dia = data or agora().date()
+    inicio, fim = _dia_utc(dia)
+    inicio_ant, _ = _dia_utc(dia - timedelta(days=1))
 
-    total_hoje = _contar(db, criado_em__gte=hoje)
-    total_ontem = _contar(db, criado_em__gte=ontem, criado_em__lt=hoje)
+    total_dia = _contar(db, criado_em__gte=inicio, criado_em__lt=fim, status__neq="cancelada")
+    total_anterior = _contar(
+        db, criado_em__gte=inicio_ant, criado_em__lt=inicio, status__neq="cancelada"
+    )
 
     return ResumoEntregas(
-        total_hoje=total_hoje,
-        pendentes=_contar(db, status="pendente"),
-        concluidas=_contar(db, status="entregue", entregue_em__gte=hoje),
+        total_hoje=total_dia,
+        pendentes=_contar(db, status="pendente", criado_em__gte=inicio, criado_em__lt=fim),
+        concluidas=_contar(db, status="entregue", criado_em__gte=inicio, criado_em__lt=fim),
         variacao_vs_ontem_pct=(
-            round((total_hoje - total_ontem) / total_ontem * 100, 1) if total_ontem else None
+            round((total_dia - total_anterior) / total_anterior * 100, 1)
+            if total_anterior
+            else None
         ),
     )
 

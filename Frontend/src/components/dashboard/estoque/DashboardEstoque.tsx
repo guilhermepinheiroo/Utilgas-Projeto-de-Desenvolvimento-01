@@ -7,7 +7,7 @@ import { FiltroProduto } from "./FiltroProduto";
 import { ItemMovimentacao } from "./ItemMovimentacao";
 import { VariacaoMensal } from "./Variacaomensal";
 
-import { opcoesCategoriaGrafico, seriesGrafico } from "../../../constants/ProdutosEstoque";
+import { opcoesCategoriaGrafico } from "../../../constants/ProdutosEstoque";
 import { useEstoqueGrafico } from "../../../hooks/UseEstoqueGrafico";
 import { useMovimentacoes } from "../../../hooks/UseMovimentacoes";
 import { useResumoEstoque } from "../../../hooks/UseResumoEstoque";
@@ -30,11 +30,18 @@ export function DashboardEstoque() {
             {estoque.resumo?.quantidade ?? "—"}
           </p>
 
-          {estoque.resumo && <VariacaoMensal percentual={estoque.resumo.variacaoMensal} />}
+          {estoque.resumo && estoque.resumo.variacaoMensal !== null && (
+            <VariacaoMensal percentual={estoque.resumo.variacaoMensal} />
+          )}
         </CardDestaque>
       }
       lista={
         <UltimasInfos titulo="Entradas e saídas">
+          {movimentacoes.length === 0 && (
+            <li className="px-3 py-4 text-center text-xs text-neutral-500">
+              Nenhuma movimentação registrada.
+            </li>
+          )}
           {movimentacoes.map((movimentacao) => (
             <ItemMovimentacao key={movimentacao.id} movimentacao={movimentacao} />
           ))}
@@ -42,10 +49,10 @@ export function DashboardEstoque() {
       }
       grafico={
         <GraficoLinhas
-          titulo={`Estoque mensal: ${grafico.categoria === "agua" ? "água" : "gás"}`}
+          titulo={`Estoque no fim de cada mês: ${grafico.categoria === "agua" ? "água" : "gás"}`}
           dados={grafico.dados}
           chaveEixoX="rotulo"
-          series={seriesGrafico[grafico.categoria]}
+          series={grafico.series}
           carregando={grafico.carregando}
           controle={
             <SeletorSegmentado

@@ -34,6 +34,7 @@ class VendaCreate(BaseModel):
 class ItemVendaOut(BaseModel):
     produto_id: int
     produto_nome: str
+    categoria: str | None = None
     quantidade: int
     preco_unitario: float
     desconto: float
@@ -64,6 +65,8 @@ class VendaOut(BaseModel):
     origem: Origem
     cliente_id: int | None = None
     cliente_nome: str | None = None
+    cliente_cpf: str | None = None
+    cliente_telefone: str | None = None
     forma_pagamento: FormaPagamento
     subtotal: float
     desconto: float
@@ -71,24 +74,14 @@ class VendaOut(BaseModel):
     total: float
     status: StatusVenda
     itens: list[ItemVendaOut]
-    # Preenchidos apenas na resposta do POST /vendas:
-    frequencia: FrequenciaRecalculada | None = None
     entrega: EntregaCriada | None = None
-
-
-class VendaResumo(BaseModel):
-    """Linha do Histórico de Vendas."""
-
-    id: int
-    criado_em: datetime
-    cliente_nome: str | None = None
-    itens_resumo: list[str]
-    forma_pagamento: FormaPagamento
-    total: float
-    status: StatusVenda
+    # Preenchido apenas na resposta do POST /vendas:
+    frequencia: FrequenciaRecalculada | None = None
 
 
 class TotaisVendas(BaseModel):
+    """Totais do período filtrado. Vendas canceladas não entram."""
+
     total_vendas: float
     quantidade_vendas: int
     clientes_atendidos: int
@@ -97,4 +90,7 @@ class TotaisVendas(BaseModel):
 
 class VendasLista(BaseModel):
     totais: TotaisVendas
-    itens: list[VendaResumo]
+    itens: list[VendaOut]
+    total: int = Field(description="Quantidade de vendas encontradas (antes da paginação)")
+    pagina: int
+    tamanho: int

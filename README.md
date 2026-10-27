@@ -97,19 +97,31 @@ O arquivo `supabase/seed.sql` cria regiões, produtos e entregadores de exemplo.
 1. No painel do Supabase (projeto **dev**), abra **SQL Editor → New query**.
 2. Cole o conteúdo de `supabase/seed.sql` e clique em **Run**.
 
-Rode **uma vez só** (rodar de novo duplica produtos e entregadores). **Nunca em produção.**
+Pode rodar mais de uma vez: ele não duplica o que já existe. **Nunca em produção.**
 
 ### 3.4 Criar seu usuário de login
 
-1. No painel: **Authentication → Users → Add user**, com e-mail e senha (marque *Auto Confirm User*).
-2. Copie o **UID** do usuário criado e rode no **SQL Editor**:
+Cada usuário precisa de login no Supabase Auth e de uma linha em `perfis`. O script abaixo faz os dois (precisa do `backend/.env` do passo 4):
+
+```bash
+cd backend
+source .venv/Scripts/activate
+python -m scripts.criar_usuario --email voce@exemplo.com --nome "Seu Nome" --papel admin
+```
+
+A senha é pedida no terminal. Para quem só atende, use `--papel operador`.
+
+Ou pelo painel:
+
+1. **Authentication → Users → Add user**, com e-mail e senha (marque *Auto Confirm User*).
+2. Copie o **UID** do usuário e rode no **SQL Editor**:
 
 ```sql
 insert into public.perfis (id, nome, papel)
 values ('COLE_O_UID_AQUI', 'Seu Nome', 'admin');
 ```
 
-Sem a linha em `perfis`, o login funciona mas a API responde 403.
+Sem a linha em `perfis` o login não entra ("Usuário sem perfil ativo").
 
 ---
 
@@ -123,8 +135,8 @@ python -m venv .venv
 Ative o ambiente virtual:
 
 ```bash
-
 source .venv/Scripts/activate
+```
 
 O terminal deve mostrar `(.venv)` no início da linha. Depois:
 
@@ -175,18 +187,17 @@ pytest tests_sql -v         # dentro de backend/
 
 Sem `TEST_DATABASE_URL` esses testes são ignorados.
 
-### Como implementar uma rota
+### Como criar ou alterar uma rota
 
-As rotas já existem no contrato, mas devolvem **501** até serem implementadas.
-
-1. Abra o `router.py` do módulo e troque `raise nao_implementado()` pela lógica.
-2. Leia a docstring da rota: ela descreve a regra de negócio esperada.
-3. Acesse o banco com `db: Client = Depends(get_db)` (de `app/core/auth.py`).
-4. Escreva um teste em `backend/tests/`.
+1. Abra o `router.py` do módulo. A docstring de cada rota descreve a regra de negócio.
+2. Acesse o banco com `db: Client = Depends(get_db)` (de `app/core/auth.py`).
+3. Escreva um teste em `backend/tests/` (veja o `FakeDB` em `test_clientes_vendas.py`).
+4. Se mudar o formato da resposta, ajuste o serviço correspondente em `Frontend/src/services/`.
 
 ### Regras da API
 
-- Todas as rotas, exceto `/health`, exigem o header `Authorization: Bearer <token do Supabase Auth>`.
+- Login pela API: `POST /auth/login` (e `POST /auth/refresh` para renovar o token).
+- Todas as rotas, exceto `/health` e `/auth/*`, exigem o header `Authorization: Bearer <access_token>`.
 - **Preço do produto e taxa de entrega são calculados no servidor**, nunca enviados pelo front-end.
 - `POST /vendas` roda tudo na **mesma transação**: venda, itens, baixa de estoque e criação da entrega.
 - **Estoque de botijões (cheio e vazio):** toda venda de produto com `controla_vazio` (gás) baixa 1 unidade **cheia** e soma 1 **vazia**; cancelar a venda desfaz. Quem faz isso é o banco, pelas funções SQL `registrar_venda`, `cancelar_venda` e `movimentar_estoque` (chame com `chamar_rpc` de `app/core/db_errors.py`, que converte os erros em 404/409/422). Nunca altere `estoque_atual`/`estoque_vazio` direto pela API.
@@ -214,13 +225,13 @@ O site abre em http://localhost:5173.
 
 ### Variáveis de ambiente do front-end
 
-Quando a integração com a API começar, crie o arquivo `Frontend/.env` (ele **não** vai para o Git):
+Copie `Frontend/.env.example` para `Frontend/.env` (ele **não** vai para o Git):
 
 ```
 VITE_API_URL=http://localhost:8000
 ```
 
-Para o login via Supabase Auth, use também `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` (chave **anon / publishable**). **Nunca** use a `service_role key` no front-end.
+O front fala só com a API, então não precisa de chave do Supabase. **Nunca** coloque a `service_role key` no front-end.
 
 ### Rodando tudo junto
 
@@ -269,11 +280,13 @@ git push -u origin feature/nome-da-tarefa
 ├── Frontend/                React + TypeScript + Tailwind
 ├── backend/
 │   ├── app/
-│   │   ├── core/            configuração, autenticação (JWT do Supabase), erros
+│   │   ├── auth/            login e renovação de sessão (Supabase Auth)
+│   │   ├── core/            configuração, autenticação, datas, frequência de compra
 │   │   ├── clientes/        router.py + schemas.py
 │   │   ├── vendas/          router.py + schemas.py
 │   │   ├── produtos/        produtos e /estoque
 │   │   ├── entregas/        entregas, entregadores e regiões
+│   │   ├── dashboard/       indicadores e gráficos (somente leitura)
 │   │   └── main.py
 │   ├── tests/
 │   ├── requirements.txt
@@ -294,19 +307,23 @@ git push -u origin feature/nome-da-tarefa
 | Vendas | `POST /vendas`, `GET /vendas` | Back-end 1 |
 | Produtos e Estoque | `/produtos`, `/estoque/*` | Back-end 2 |
 | Entregas | `/entregas`, `/entregadores`, `/regioes` | Back-end 2 |
-| Auth | `/me` (perfil do usuário logado) | Full-stack |
+| Dashboard | `/dashboard/*` (somente leitura) | Back-end 2 |
+| Auth | `/auth/login`, `/auth/refresh`, `/me` | Full-stack |
 
 ### Telas do front-end
 
 | Tela | Modo na entrega | Responsável |
 |---|---|---|
+| Login | Funcional | Full-stack |
 | Atendimento (busca por telefone + venda em 4 etapas) | Funcional | Full-stack |
 | Portaria | Funcional | Full-stack |
 | Clientes | Funcional | Front-end |
 | Entregas | Funcional | Front-end |
-| Vendas (histórico) | Apenas visual (mockup) | Front-end |
-| Estoque | Apenas visual (mockup) | Front-end |
-| Dashboard | Apenas visual (mockup) | Front-end |
+| Vendas (histórico) | Funcional | Front-end |
+| Estoque | Funcional | Front-end |
+| Dashboard | Funcional | Front-end |
+
+A conversão entre o formato da API e o do front fica em `Frontend/src/services/`.
 
 ### Banco de dados
 
@@ -317,8 +334,8 @@ Tabelas: `perfis`, `regioes`, `clientes`, `enderecos`, `produtos`, `vendas`, `it
 ## 8. Escopo da entrega (04/11/2026)
 
 - **Banco de dados:** completo, com migrations versionadas.
-- **Back-end:** API completa, **exceto o módulo de Dashboard**.
-- **Front-end:** todas as telas funcionais e integradas à API, **exceto** Estoque, Vendas (histórico) e Dashboard, que serão **apenas visuais** com dados fictícios (mockups).
+- **Back-end:** API completa (inclui login e Dashboard).
+- **Front-end:** todas as telas integradas à API.
 
 ---
 
@@ -330,11 +347,14 @@ No Windows o caminho é `source .venv/Scripts/activate`.
 **`uvicorn: command not found`**
 Use `python -m uvicorn app.main:app --reload` com o ambiente virtual ativo (`(.venv)` no terminal).
 
-**A API devolve 401 ou 403**
-401: token ausente ou expirado. 403: seu usuário não tem linha em `perfis` (veja o passo 3.4) ou está inativo.
+**Login: "Usuário sem perfil ativo"**
+Falta a linha em `perfis` (passo 3.4) ou ela está com `ativo = false`.
 
-**A API devolve 501**
-Esperado: a rota existe no contrato mas ainda não foi implementada.
+**"Não foi possível conectar ao servidor"**
+A API não está rodando ou o `VITE_API_URL` está errado (reinicie o `npm run dev` depois de mudar o `.env`).
+
+**Erro de CORS**
+Confira o `CORS_ORIGINS` no `backend/.env`.
 
 **Erro de variável de ambiente ao subir o back-end**
 O `backend/.env` está vazio ou incompleto. Reveja o passo 4.

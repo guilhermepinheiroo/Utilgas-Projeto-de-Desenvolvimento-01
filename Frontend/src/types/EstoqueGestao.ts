@@ -1,18 +1,11 @@
-export type CategoriaProduto = "gas" | "agua" | "outros";
 export type TipoMovimentacaoEstoque = "entrada" | "saida";
-export type TipoTrocaVazio = "gas" | "agua";
-
-export interface ProdutoEstoque {
-  id: string;
-  nome: string;
-  categoria: CategoriaProduto;
-  quantidade: number;
-  precoCentavos: number;
-  estoqueMinimo: number;
-}
+export type TipoEstoque = "cheio" | "vazio";
+export type OrigemMovimentacao = "compra" | "ajuste" | "troca_vazio" | "venda" | "cancelamento";
 
 export interface ResumoEstoqueGestao {
-  total: number;
+  total: number; // cheios
+  vazios: number;
+  entradasHoje: number;
   entradasMes: number;
   saidasMes: number;
   baixoEstoque: number;
@@ -22,15 +15,26 @@ export interface MovimentacaoEstoque {
   id: string;
   produtoId: string;
   produtoNome: string;
+  produtoCategoria: string | null;
   tipo: TipoMovimentacaoEstoque;
+  tipoEstoque: TipoEstoque;
+  origem: OrigemMovimentacao;
   quantidade: number;
-  dataHora: string;
+  observacao: string | null;
+  dataHora: string; // ISO
 }
 
-export interface ProdutoInput {
-  nome: string;
-  categoria: CategoriaProduto;
-  precoCentavos: number;
-  estoqueInicial: number;
-  estoqueMinimo: number;
+export interface MovimentacaoInput {
+  produtoId: string;
+  quantidade: number;
+  tipo: TipoMovimentacaoEstoque;
+  estoque: TipoEstoque;
+  origem: "compra" | "ajuste";
+  observacao?: string;
+}
+
+export interface TrocaVazioInput {
+  produtoId: string;
+  quantidade: number;
+  observacao?: string;
 }

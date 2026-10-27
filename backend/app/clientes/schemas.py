@@ -28,7 +28,7 @@ class EnderecoOut(EnderecoBase):
 
 class ClienteBase(BaseModel):
     nome: str
-    telefone: str = Field(description="Somente dígitos, ex: 5398812447")
+    telefone: str = Field(description="Somente dígitos, ex: 53988124477")
     cpf_cnpj: str | None = None
     email: str | None = None
     observacoes: str | None = None
@@ -71,9 +71,12 @@ class ClienteResumo(BaseModel):
     id: int
     nome: str
     telefone: str
+    cpf_cnpj: str | None = None
     endereco_principal: str | None = None
+    bairro: str | None = None
     ultima_compra: date | None = None
     status: StatusCliente
+    criado_em: datetime
 
 
 class ClientesPagina(BaseModel):
@@ -81,3 +84,17 @@ class ClientesPagina(BaseModel):
     total: int
     pagina: int
     tamanho: int
+
+
+class Indicador(BaseModel):
+    valor: int
+    variacao_pct: float | None = None
+
+
+class ResumoClientes(BaseModel):
+    """Cards do topo da tela Clientes."""
+
+    total: Indicador
+    novos_no_mes: Indicador
+    ativos: Indicador
+    inadimplentes: Indicador

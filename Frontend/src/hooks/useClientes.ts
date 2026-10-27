@@ -1,38 +1,21 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { TAMANHO_PAGINA_CLIENTES } from "../constants/Clientes";
 import { buscarClientes } from "../services/Clientes";
-import type { Cliente, FiltroStatus } from "../types/clientes";
+import type { FiltroStatus } from "../types/clientes";
+import { useConsulta } from "./UseConsulta";
 import { useDebounce } from "./UseDebounce";
 
 export function useClientes() {
   const [busca, setBusca] = useState("");
   const [status, setStatus] = useState<FiltroStatus>("todos");
   const [pagina, setPagina] = useState(1);
-  const [resultado, setResultado] = useState<{
-    chave: string;
-    itens: Cliente[];
-    total: number;
-  } | null>(null);
 
   const buscaAtrasada = useDebounce(busca);
-  const chave = `${buscaAtrasada}|${status}|${pagina}`;
-
-  useEffect(() => {
-    let cancelado = false;
-
-    buscarClientes({
-      pagina,
-      tamanhoPagina: TAMANHO_PAGINA_CLIENTES,
-      busca: buscaAtrasada,
-      status,
-    }).then((resposta) => {
-      if (!cancelado) setResultado({ chave, ...resposta });
-    });
-
-    return () => {
-      cancelado = true;
-    };
-  }, [buscaAtrasada, status, pagina, chave]);
+  const consulta = useConsulta(
+    () =>
+      buscarClientes({ pagina, tamanhoPagina: TAMANHO_PAGINA_CLIENTES, busca: buscaAtrasada, status }),
+    `${buscaAtrasada}|${status}|${pagina}`
+  );
 
   // Mudar busca ou filtro sempre volta para a primeira página
   function alterarBusca(valor: string) {
@@ -45,7 +28,7 @@ export function useClientes() {
     setPagina(1);
   }
 
-  const total = resultado?.total ?? 0;
+  const total = consulta.dados?.total ?? 0;
 
   return {
     busca,
@@ -54,9 +37,11 @@ export function useClientes() {
     alterarStatus,
     pagina,
     setPagina,
-    clientes: resultado?.itens ?? [],
+    clientes: consulta.dados?.itens ?? [],
     total,
     totalPaginas: Math.max(1, Math.ceil(total / TAMANHO_PAGINA_CLIENTES)),
-    carregando: resultado?.chave !== chave,
+    carregando: consulta.carregando,
+    erro: consulta.erro,
+    recarregar: consulta.recarregar,
   };
 }

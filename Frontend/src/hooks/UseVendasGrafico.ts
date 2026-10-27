@@ -1,30 +1,16 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { buscarVendasGrafico } from "../services/Dashboard";
-import type { Periodo, PontoGraficoVendas } from "../types/Dashboard";
+import type { Periodo } from "../types/Dashboard";
+import { useConsulta } from "./UseConsulta";
 
 export function useVendasGrafico() {
   const [periodo, setPeriodo] = useState<Periodo>("hoje");
-  const [resultado, setResultado] = useState<{
-    periodo: Periodo;
-    dados: PontoGraficoVendas[];
-  } | null>(null);
-
-  useEffect(() => {
-    let cancelado = false;
-
-    buscarVendasGrafico(periodo).then((dados) => {
-      if (!cancelado) setResultado({ periodo, dados });
-    });
-
-    return () => {
-      cancelado = true;
-    };
-  }, [periodo]);
+  const consulta = useConsulta(() => buscarVendasGrafico(periodo), periodo, 30000);
 
   return {
     periodo,
     setPeriodo,
-    dados: resultado?.dados ?? [],
-    carregando: resultado?.periodo !== periodo,
+    dados: consulta.dados ?? [],
+    carregando: consulta.carregando,
   };
 }

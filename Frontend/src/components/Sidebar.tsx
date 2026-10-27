@@ -1,4 +1,6 @@
+import { LogOut } from "lucide-react";
 import { NavLink } from "react-router-dom";
+import { useAuth } from "../auth/useAuth";
 
 import iconeAtendimento from "../assets/icon-atendimento-sidebar.png";
 import iconeDashboard from "../assets/icon-dashboard-sidebar.png";
@@ -49,16 +51,32 @@ function ItemMenu({ rotulo, caminho, icone }: ItemMenuProps) {
   );
 }
 
-function PerfilUsuario({ nome, cargo }: { nome: string; cargo: string }) {
+function PerfilUsuario() {
+  const { usuario, sair } = useAuth();
+  if (!usuario) return null;
+
   return (
     <div className="flex items-center gap-3 rounded-md bg-sidebar-ativo px-3 py-2">
-      <div className="flex size-7 items-center justify-center rounded-full bg-white/10">
+      <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-white/10">
         <img src={iconePerfil} alt="" className="size-3.5 object-contain" />
       </div>
-      <div className="leading-tight">
-        <p className="text-[11px] font-semibold text-white">{nome}</p>
-        <p className="text-[10px] text-white/60">{cargo}</p>
+      <div className="min-w-0 flex-1 leading-tight">
+        <p title={usuario.nome} className="truncate text-[11px] font-semibold text-white">
+          {usuario.nome}
+        </p>
+        <p className="text-[10px] text-white/60">
+          {usuario.papel === "admin" ? "Administrador" : "Operador"}
+        </p>
       </div>
+      <button
+        type="button"
+        onClick={sair}
+        aria-label="Sair do sistema"
+        title="Sair"
+        className="rounded p-1 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+      >
+        <LogOut size={16} />
+      </button>
     </div>
   );
 }
@@ -75,7 +93,7 @@ export function Sidebar() {
       </nav>
 
       <div className="mt-auto">
-        <PerfilUsuario nome="Usuário Gás" cargo="Operador" />
+        <PerfilUsuario />
       </div>
     </aside>
   );

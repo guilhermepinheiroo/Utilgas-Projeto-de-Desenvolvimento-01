@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from postgrest.exceptions import APIError
 from supabase import Client
 
@@ -35,9 +37,15 @@ def _buscar_produto(db: Client, produto_id: int) -> dict:
     return rows[0]
 
 
+def _ts(valor: str) -> datetime:
+    return datetime.fromisoformat(valor.replace("Z", "+00:00"))
+
+
 def _movimentacao_out(row: dict) -> MovimentacaoOut:
     produto = row.pop("produtos", None) or {}
-    return MovimentacaoOut(**row, produto_nome=produto.get("nome", ""))
+    return MovimentacaoOut(
+        **row, produto_nome=produto.get("nome", ""), produto_categoria=produto.get("categoria")
+    )
 
 
 # ---------------------------------------------------------------- produtos
@@ -60,6 +68,11 @@ def listar_produtos(
         q = q.ilike("nome", f"%{busca.strip()}%")
     rows = q.order("nome").execute().data
     return [_produto_out(r) for r in rows]
+
+
+@router.get("/{produto_id}", response_model=ProdutoOut)
+def obter_produto(produto_id: int, db: Client = Depends(get_db)):
+    return _produto_out(_buscar_produto(db, produto_id))
 
 
 @router.post("", response_model=ProdutoOut, status_code=201)
@@ -132,6 +145,22 @@ def atualizar_produto(produto_id: int, dados: ProdutoUpdate, db: Client = Depend
     return _produto_out(rows[0])
 
 
+@router.delete("/{produto_id}", status_code=204)
+def excluir_produto(produto_id: int, db: Client = Depends(get_db)):
+    """Com histórico só desativa; sem histórico apaga."""
+    _buscar_produto(db, produto_id)
+    usado = (
+        db.table("movimentacoes_estoque").select("id").eq("produto_id", produto_id).limit(1)
+    ).execute().data or (
+        db.table("itens_venda").select("id").eq("produto_id", produto_id).limit(1)
+    ).execute().data
+    if usado:
+        db.table("produtos").update({"ativo": False}).eq("id", produto_id).execute()
+    else:
+        db.table("produtos").delete().eq("id", produto_id).execute()
+    return Response(status_code=204)
+
+
 # ----------------------------------------------------------------- estoque
 
 
@@ -146,15 +175,17 @@ def resumo_estoque(db: Client = Depends(get_db)):
         .data
     )
 
-    entradas = (
+    entradas_mes = (
         db.table("movimentacoes_estoque")
-        .select("quantidade")
+        .select("quantidade, criado_em")
         .eq("tipo", "entrada")
         .eq("tipo_estoque", "cheio")
-        .gte("criado_em", para_iso_utc(inicio_do_dia()))
+        .gte("criado_em", para_iso_utc(inicio_do_mes()))
         .execute()
         .data
     )
+    hoje = para_iso_utc(inicio_do_dia())
+    entradas = [m for m in entradas_mes if _ts(m["criado_em"]) >= _ts(hoje)]
     saidas = (
         db.table("movimentacoes_estoque")
         .select("quantidade")
@@ -169,6 +200,7 @@ def resumo_estoque(db: Client = Depends(get_db)):
         total_em_estoque=sum(p["estoque_atual"] for p in produtos),
         total_vazios=sum(p["estoque_vazio"] for p in produtos),
         entradas_hoje=sum(m["quantidade"] for m in entradas),
+        entradas_mes=sum(m["quantidade"] for m in entradas_mes),
         saidas_mes=sum(m["quantidade"] for m in saidas),
         itens_com_baixo_estoque=sum(
             1 for p in produtos if p["estoque_atual"] <= p["estoque_minimo"]
@@ -203,7 +235,7 @@ def listar_movimentacoes(
     limite: int = Query(50, ge=1, le=500),
     db: Client = Depends(get_db),
 ):
-    q = db.table("movimentacoes_estoque").select("*, produtos(nome)")
+    q = db.table("movimentacoes_estoque").select("*, produtos(nome, categoria)")
     if produto_id is not None:
         q = q.eq("produto_id", produto_id)
     rows = q.order("criado_em", desc=True).order("id", desc=True).limit(limite).execute().data
@@ -238,7 +270,7 @@ def registrar_movimentacao(
     # (troca_vazio grava duas linhas; a mais recente é a entrada de cheios.)
     row = (
         db.table("movimentacoes_estoque")
-        .select("*, produtos(nome)")
+        .select("*, produtos(nome, categoria)")
         .eq("produto_id", dados.produto_id)
         .eq("origem", dados.origem)
         .order("id", desc=True)
