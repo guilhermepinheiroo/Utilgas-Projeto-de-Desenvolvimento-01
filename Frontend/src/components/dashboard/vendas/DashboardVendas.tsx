@@ -38,6 +38,11 @@ export function DashboardVendas() {
       }
       lista={
         <UltimasInfos titulo="Últimas vendas">
+          {vendas.length === 0 && (
+            <li className="px-3 py-4 text-center text-xs text-neutral-500">
+              Nenhuma venda hoje ainda.
+            </li>
+          )}
           {vendas.map((venda) => (
             <ItemVenda key={venda.id} venda={venda} />
           ))}
@@ -45,7 +50,7 @@ export function DashboardVendas() {
       }
       grafico={
         <GraficoLinhas
-          titulo="Vendas diárias: água e botijão"
+          titulo="Unidades vendidas: água e botijão"
           dados={grafico.dados}
           chaveEixoX="rotulo"
           series={series}

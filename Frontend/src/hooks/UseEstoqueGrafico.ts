@@ -1,30 +1,17 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { buscarEstoqueGrafico } from "../services/estoque";
-import type { CategoriaGrafico, PontoGraficoEstoque } from "../types/Estoque";
+import type { CategoriaGrafico } from "../types/Estoque";
+import { useConsulta } from "./UseConsulta";
 
 export function useEstoqueGrafico() {
-  const [categoria, setCategoria] = useState<CategoriaGrafico>("agua");
-  const [resultado, setResultado] = useState<{
-    categoria: CategoriaGrafico;
-    dados: PontoGraficoEstoque[];
-  } | null>(null);
-
-  useEffect(() => {
-    let cancelado = false;
-
-    buscarEstoqueGrafico(categoria).then((dados) => {
-      if (!cancelado) setResultado({ categoria, dados });
-    });
-
-    return () => {
-      cancelado = true;
-    };
-  }, [categoria]);
+  const [categoria, setCategoria] = useState<CategoriaGrafico>("gas");
+  const consulta = useConsulta(() => buscarEstoqueGrafico(categoria), categoria);
 
   return {
     categoria,
     setCategoria,
-    dados: resultado?.dados ?? [],
-    carregando: resultado?.categoria !== categoria,
+    series: consulta.dados?.series ?? [],
+    dados: consulta.dados?.dados ?? [],
+    carregando: consulta.carregando,
   };
 }

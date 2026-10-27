@@ -7,6 +7,7 @@ interface DialogoProps {
   aoFechar: () => void;
   children: ReactNode;
   tituloVisivel?: boolean;
+  largura?: "normal" | "larga";
 }
 
 export function Dialogo({
@@ -15,6 +16,7 @@ export function Dialogo({
   aoFechar,
   children,
   tituloVisivel = true,
+  largura = "normal",
 }: DialogoProps) {
   const dialogoRef = useRef<HTMLDialogElement>(null);
   const idTitulo = useId();
@@ -36,7 +38,9 @@ export function Dialogo({
         if (e.target === e.currentTarget) aoFechar();
       }}
       aria-labelledby={idTitulo}
-      className="m-auto w-full max-w-lg rounded-lg bg-white p-0 text-neutral-900 shadow-xl backdrop:bg-black/50"
+      className={`m-auto max-h-[92vh] w-full overflow-y-auto rounded-lg ${
+        largura === "larga" ? "max-w-2xl" : "max-w-lg"
+      } bg-white p-0 text-neutral-900 shadow-xl backdrop:bg-black/50`}
     >
       <div className="p-5">
         <header className="mb-4 flex items-center justify-between gap-4">

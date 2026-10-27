@@ -13,7 +13,7 @@ interface TabelaEntregasProps {
   aoAbrirAcoes: (entrega: Entrega) => void;
 }
 
-const colunas = ["Status", "Cliente", "Entregador", "Endereço", "Produto", "Hora", "Valor", "Ações"];
+const colunas = ["Status", "Cliente", "Entregador", "Endereço", "Produto", "Pedido às", "Valor", "Ações"];
 
 export function TabelaEntregas({
   entregas,

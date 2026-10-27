@@ -1,70 +1,133 @@
 import type {
   Cliente,
+  ClienteDetalhado,
+  ClienteInput,
+  Endereco,
+  EnderecoInput,
   PaginaClientes,
   ParametrosBuscaClientes,
+  Regiao,
   ResumoClientes,
   StatusCliente,
 } from "../types/clientes";
-import { esperar } from "../utils/Simulacao";
-import { normalizar } from "../utils/Texto";
+import { api, ErroApi, paraCentavos } from "./Api";
 
-const nomes = [
-  "Ana Paula", "Carlos Henrique", "Mariana", "Roberto", "Juliana",
-  "Fernanda", "Luciano", "Patrícia", "Marcos", "Camila",
-  "Rafael", "Beatriz", "Thiago", "Larissa", "Eduardo",
-];
-
-const sobrenomes = [
-  "Silva", "Souza", "Costa", "Oliveira", "Ferreira", "Mendes", "Lima",
-  "Duarte", "Alves", "Barbosa", "Pereira", "Rodrigues", "Martins", "Gomes",
-  "Ribeiro", "Carvalho", "Almeida", "Nunes", "Teixeira",
-];
-
-const ruas = [
-  "Rua das Flores", "Av. Brasil", "Rua Sete de Setembro", "Rua João Pinheiro",
-  "Av. Andrade Neves", "Rua Sacramento", "Rua General Osório",
-];
-
-function dataParaIso(data: Date): string {
-  const mes = String(data.getMonth() + 1).padStart(2, "0");
-  const dia = String(data.getDate()).padStart(2, "0");
-  return `${data.getFullYear()}-${mes}-${dia}`;
+interface EnderecoApi {
+  id: number;
+  endereco: string;
+  complemento: string | null;
+  cep: string | null;
+  bairro: string | null;
+  regiao_id: number | null;
+  regiao_nome: string | null;
+  taxa_entrega: number | null;
+  principal: boolean;
 }
 
-function diasAtras(dias: number): string {
-  const data = new Date();
-  data.setDate(data.getDate() - dias);
-  return dataParaIso(data);
+interface ClienteApi {
+  id: number;
+  nome: string;
+  telefone: string;
+  cpf_cnpj: string | null;
+  email: string | null;
+  observacoes: string | null;
+  status: StatusCliente;
+  criado_em: string;
+  enderecos: EnderecoApi[];
+  indicadores: {
+    total_pedidos: number;
+    ultima_compra: string | null;
+    dias_desde_ultima_compra: number | null;
+    frequencia_media_dias: number | null;
+    recompra_prevista_em_dias: number | null;
+  } | null;
 }
 
-function statusDoIndice(indice: number): StatusCliente {
-  if (indice % 25 === 0) return "inadimplente";
-  if (indice % 17 === 3) return "inativo";
-  return "ativo";
+interface ClienteResumoApi {
+  id: number;
+  nome: string;
+  telefone: string;
+  cpf_cnpj: string | null;
+  endereco_principal: string | null;
+  bairro: string | null;
+  ultima_compra: string | null;
+  status: StatusCliente;
+  criado_em: string;
 }
 
-function gerarClientes(quantidade: number): Cliente[] {
-  return Array.from({ length: quantidade }, (_, i) => {
-    const numero = String((i * 7919 + 12345678) % 100000000).padStart(8, "0");
+const soDigitos = (valor: string) => valor.replace(/\D/g, "");
+const ouNulo = (valor: string) => (valor.trim() ? valor.trim() : null);
 
-    const primeiroSobrenome = sobrenomes[i % 19];
-    let segundoSobrenome = sobrenomes[(i + 5) % 17];
-    if (segundoSobrenome === primeiroSobrenome) segundoSobrenome = sobrenomes[18];
-
-    return {
-      id: `cliente-${i + 1}`,
-      nome: `${nomes[i % nomes.length]} ${primeiroSobrenome} ${segundoSobrenome}`,
-      whatsapp: `539${numero}`,
-      endereco: `${ruas[i % ruas.length]}, ${100 + ((i * 37) % 900)}`,
-      ultimaCompra: i % 40 === 7 ? null : diasAtras(((i * 7) % 90) + 1),
-      status: statusDoIndice(i),
-      cadastradoEm: diasAtras(i),
-    };
-  });
+function enderecoDeApi(e: EnderecoApi): Endereco {
+  return {
+    id: String(e.id),
+    endereco: e.endereco,
+    complemento: e.complemento,
+    cep: e.cep,
+    bairro: e.bairro,
+    regiaoId: e.regiao_id !== null ? String(e.regiao_id) : null,
+    regiaoNome: e.regiao_nome,
+    taxaEntregaCentavos: paraCentavos(e.taxa_entrega),
+    principal: e.principal,
+  };
 }
 
-// Base simulada. Com o backend, isso vira o banco de dados.
-const clientes: Cliente[] = gerarClientes(1248);
+function clienteDeApi(c: ClienteApi): ClienteDetalhado {
+  return {
+    id: String(c.id),
+    nome: c.nome,
+    whatsapp: c.telefone,
+    cpf: c.cpf_cnpj,
+    email: c.email,
+    observacoes: c.observacoes,
+    status: c.status,
+    cadastradoEm: c.criado_em,
+    enderecos: c.enderecos.map(enderecoDeApi),
+    indicadores: c.indicadores && {
+      totalPedidos: c.indicadores.total_pedidos,
+      ultimaCompra: c.indicadores.ultima_compra,
+      diasDesdeUltimaCompra: c.indicadores.dias_desde_ultima_compra,
+      frequenciaMediaDias: c.indicadores.frequencia_media_dias,
+      recompraPrevistaEmDias: c.indicadores.recompra_prevista_em_dias,
+    },
+  };
+}
+
+function resumoDeApi(c: ClienteResumoApi): Cliente {
+  return {
+    id: String(c.id),
+    nome: c.nome,
+    whatsapp: c.telefone,
+    cpf: c.cpf_cnpj,
+    endereco: c.endereco_principal ?? "",
+    bairro: c.bairro,
+    ultimaCompra: c.ultima_compra,
+    status: c.status,
+    cadastradoEm: c.criado_em,
+  };
+}
+
+function clienteParaApi(input: ClienteInput) {
+  return {
+    nome: input.nome.trim(),
+    telefone: soDigitos(input.whatsapp),
+    cpf_cnpj: soDigitos(input.cpf) || null,
+    email: ouNulo(input.email),
+    observacoes: ouNulo(input.observacoes),
+    status: input.status,
+  };
+}
+
+function enderecoParaApi(input: EnderecoInput) {
+  return {
+    endereco: input.endereco.trim(),
+    complemento: ouNulo(input.complemento),
+    cep: soDigitos(input.cep) || null,
+    bairro: ouNulo(input.bairro),
+    regiao_id: input.regiaoId ? Number(input.regiaoId) : null,
+    principal: input.principal,
+  };
+}
 
 export async function buscarClientes({
   pagina,
@@ -72,52 +135,88 @@ export async function buscarClientes({
   busca,
   status,
 }: ParametrosBuscaClientes): Promise<PaginaClientes> {
-  await esperar();
-
-  const termo = normalizar(busca.trim());
-  const termoNumerico = busca.replace(/\D/g, "");
-
-  const filtrados = clientes
-    .filter((cliente) => status === "todos" || cliente.status === status)
-    .filter((cliente) => {
-      if (!termo) return true;
-
-      return (
-        normalizar(cliente.nome).includes(termo) ||
-        normalizar(cliente.endereco).includes(termo) ||
-        (termoNumerico.length > 0 && cliente.whatsapp.includes(termoNumerico))
-      );
-    })
-    .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
-
-  const inicio = (pagina - 1) * tamanhoPagina;
-
-  return {
-    itens: filtrados.slice(inicio, inicio + tamanhoPagina),
-    total: filtrados.length,
-  };
+  const resposta = await api.get<{ itens: ClienteResumoApi[]; total: number }>("/clientes", {
+    pagina,
+    tamanho: tamanhoPagina,
+    busca: busca.trim(),
+    status: status === "todos" ? undefined : status,
+  });
+  return { itens: resposta.itens.map(resumoDeApi), total: resposta.total };
 }
 
 export async function buscarResumoClientes(): Promise<ResumoClientes> {
-  await esperar();
-
-  const hoje = new Date();
-  const novosNoMes = clientes.filter((cliente) => {
-    const [ano, mes] = cliente.cadastradoEm.split("-").map(Number);
-    return ano === hoje.getFullYear() && mes === hoje.getMonth() + 1;
-  }).length;
-
-  // Os totais saem da base; as variações são fixas porque dependem de histórico
+  type Ind = { valor: number; variacao_pct: number | null };
+  const r = await api.get<{ total: Ind; novos_no_mes: Ind; ativos: Ind; inadimplentes: Ind }>(
+    "/clientes/resumo"
+  );
+  const ind = (i: Ind) => ({ valor: i.valor, variacao: i.variacao_pct });
   return {
-    total: { valor: clientes.length, variacao: 12 },
-    novosNoMes: { valor: novosNoMes, variacao: 5.3 },
-    ativos: { valor: clientes.filter((c) => c.status === "ativo").length, variacao: 2.1 },
-    inadimplentes: {
-      valor: clientes.filter((c) => c.status === "inadimplente").length,
-      variacao: -1.4,
-    },
+    total: ind(r.total),
+    novosNoMes: ind(r.novos_no_mes),
+    ativos: ind(r.ativos),
+    inadimplentes: ind(r.inadimplentes),
   };
 }
-export function obterClienteMock(indice: number): Cliente {
-  return clientes[indice % clientes.length];
+
+export async function buscarClientePorTelefone(telefone: string): Promise<ClienteDetalhado | null> {
+  try {
+    const c = await api.get<ClienteApi>(`/clientes/por-telefone/${soDigitos(telefone)}`);
+    return clienteDeApi(c);
+  } catch (erro) {
+    if (erro instanceof ErroApi && erro.status === 404) return null;
+    throw erro;
+  }
+}
+
+export async function obterCliente(id: string): Promise<ClienteDetalhado> {
+  return clienteDeApi(await api.get<ClienteApi>(`/clientes/${encodeURIComponent(id)}`));
+}
+
+export async function criarCliente(
+  input: ClienteInput,
+  endereco?: EnderecoInput
+): Promise<ClienteDetalhado> {
+  const c = await api.post<ClienteApi>("/clientes", {
+    ...clienteParaApi(input),
+    enderecos: endereco ? [enderecoParaApi({ ...endereco, principal: true })] : [],
+  });
+  return clienteDeApi(c);
+}
+
+export async function atualizarCliente(id: string, input: ClienteInput): Promise<ClienteDetalhado> {
+  const c = await api.put<ClienteApi>(`/clientes/${encodeURIComponent(id)}`, clienteParaApi(input));
+  return clienteDeApi(c);
+}
+
+export function excluirCliente(id: string): Promise<void> {
+  return api.delete(`/clientes/${encodeURIComponent(id)}`);
+}
+
+export async function adicionarEndereco(clienteId: string, input: EnderecoInput): Promise<Endereco> {
+  const e = await api.post<EnderecoApi>(
+    `/clientes/${encodeURIComponent(clienteId)}/enderecos`,
+    enderecoParaApi(input)
+  );
+  return enderecoDeApi(e);
+}
+
+export async function atualizarEndereco(
+  clienteId: string,
+  enderecoId: string,
+  input: EnderecoInput
+): Promise<Endereco> {
+  const e = await api.put<EnderecoApi>(
+    `/clientes/${encodeURIComponent(clienteId)}/enderecos/${encodeURIComponent(enderecoId)}`,
+    enderecoParaApi(input)
+  );
+  return enderecoDeApi(e);
+}
+
+export async function buscarRegioes(): Promise<Regiao[]> {
+  const regioes = await api.get<{ id: number; nome: string; taxa_entrega: number }[]>("/regioes");
+  return regioes.map((r) => ({
+    id: String(r.id),
+    nome: r.nome,
+    taxaEntregaCentavos: paraCentavos(r.taxa_entrega),
+  }));
 }

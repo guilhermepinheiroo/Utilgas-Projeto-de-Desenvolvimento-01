@@ -1,177 +1,213 @@
-import { catalogoProdutos } from "../constants/ProdutosEstoque";
-import type { IdProdutoEstoque } from "../types/Estoque";
 import type {
-  FiltrosVendas,
   FormaPagamento,
+  NovaVenda,
   OrdenacaoVendas,
   PaginaVendas,
   ParametrosBuscaVendas,
   PeriodoVendas,
-  ProdutoVendido,
   RegistroVenda,
-  ResumoVendas,
   StatusVenda,
+  VendaRegistrada,
 } from "../types/Vendas";
-import { dataParaIso } from "../utils/FormataData";
-import { esperar } from "../utils/Simulacao";
-import { normalizar } from "../utils/Texto";
-import { obterClienteMock } from "./Clientes";
+import { api, paraCentavos, paraReais } from "./Api";
 
-const CLIENTES_NO_MOCK = 120;
-const DIAS_DE_HISTORICO = 45;
+type FormaApi = "pix" | "dinheiro" | "cartao_credito" | "cartao_debito";
+type StatusApi = "pendente" | "concluida" | "cancelada";
 
-const formasPagamento: FormaPagamento[] = ["pix", "dinheiro", "pix", "credito", "debito", "pix", "dinheiro"];
-const botijoesVendidos: IdProdutoEstoque[] = [
-  "botijaoP13", "botijaoP13", "botijaoP5", "botijaoP20", "botijaoP13", "botijaoP45",
-];
-
-function dataDeDiasAtras(dias: number): Date {
-  const data = new Date();
-  data.setDate(data.getDate() - dias);
-  return data;
+interface VendaApi {
+  id: number;
+  criado_em: string;
+  origem: "atendimento" | "portaria";
+  cliente_id: number | null;
+  cliente_nome: string | null;
+  cliente_cpf: string | null;
+  forma_pagamento: FormaApi;
+  subtotal: number;
+  desconto: number;
+  taxa_entrega: number;
+  total: number;
+  status: StatusApi;
+  itens: {
+    produto_id: number;
+    produto_nome: string;
+    categoria: string | null;
+    quantidade: number;
+    preco_unitario: number;
+    desconto: number;
+    subtotal: number;
+  }[];
+  entrega: {
+    id: number;
+    status: "pendente" | "entregue" | "cancelada";
+    regiao: string | null;
+    entregador_id: number | null;
+  } | null;
+  frequencia?: {
+    anterior_dias: number | null;
+    nova_dias: number | null;
+    recompra_prevista_em_dias: number | null;
+    dentro_da_janela_de_contato: boolean | null;
+  } | null;
 }
 
-function cpfSimulado(indice: number): string {
-  return String(10000000000 + ((indice * 7919 + 13579) % 89999999999)).padStart(11, "0");
-}
+const formaDeApi: Record<FormaApi, FormaPagamento> = {
+  pix: "pix",
+  dinheiro: "dinheiro",
+  cartao_credito: "credito",
+  cartao_debito: "debito",
+};
 
-function criarItem(produtoId: IdProdutoEstoque, quantidade: number): ProdutoVendido {
-  return { produtoId, quantidade, precoUnitarioCentavos: catalogoProdutos[produtoId].precoCentavos };
-}
+export const formaParaApi: Record<FormaPagamento, FormaApi> = {
+  pix: "pix",
+  dinheiro: "dinheiro",
+  credito: "cartao_credito",
+  debito: "cartao_debito",
+};
 
-function criarVenda(sequencia: number, diasAtras: number, posicaoNoDia: number): RegistroVenda {
-  const indiceCliente = (sequencia * 37) % CLIENTES_NO_MOCK;
-  const clienteMock = obterClienteMock(indiceCliente);
-  const semCadastro = sequencia % 5 === 0;
+const statusDeApi: Record<StatusApi, StatusVenda> = {
+  concluida: "pago",
+  pendente: "pendente",
+  cancelada: "cancelado",
+};
 
-  const itens = [criarItem(botijoesVendidos[sequencia % botijoesVendidos.length], 1)];
-  if (sequencia % 2 === 0) itens.push(criarItem("agua20l", sequencia % 3 === 0 ? 2 : 1));
+const statusParaApi: Record<StatusVenda, StatusApi> = {
+  pago: "concluida",
+  pendente: "pendente",
+  cancelado: "cancelada",
+};
 
-  const hora = String(8 + ((posicaoNoDia * 53 + diasAtras) % 13)).padStart(2, "0");
-  const minuto = String((posicaoNoDia * 17 + diasAtras * 7) % 60).padStart(2, "0");
+const periodoParaApi: Record<PeriodoVendas, string> = {
+  hoje: "hoje",
+  ontem: "ontem",
+  "7dias": "7d",
+  "30dias": "30d",
+  mes: "mes",
+};
 
-  const status: StatusVenda =
-    sequencia % 23 === 5 ? "cancelado" : sequencia % 6 === 2 ? "pendente" : "pago";
+const ordemParaApi: Record<OrdenacaoVendas, string> = {
+  recentes: "mais_recentes",
+  antigas: "mais_antigas",
+  maior: "maior_valor",
+  menor: "menor_valor",
+};
 
+function vendaDeApi(v: VendaApi): RegistroVenda {
   return {
-    id: `venda-${sequencia + 1}`,
-    cliente: semCadastro
-      ? null
-      : {
-          id: clienteMock.id,
-          nome: clienteMock.nome,
-          cpf: indiceCliente % 4 === 0 ? null : cpfSimulado(indiceCliente),
-        },
-    origem: sequencia % 3 === 1 ? "entrega" : "portaria",
-    itens,
-    dataHora: `${dataParaIso(dataDeDiasAtras(diasAtras))}T${hora}:${minuto}:00`,
-    pagamento: formasPagamento[sequencia % formasPagamento.length],
-    status,
-    totalCentavos: itens.reduce((soma, item) => soma + item.precoUnitarioCentavos * item.quantidade, 0),
+    id: String(v.id),
+    numero: v.id,
+    cliente:
+      v.cliente_id !== null
+        ? { id: String(v.cliente_id), nome: v.cliente_nome ?? "Cliente", cpf: v.cliente_cpf }
+        : null,
+    origem: v.origem === "atendimento" ? "entrega" : "portaria",
+    itens: v.itens.map((i) => ({
+      produtoId: String(i.produto_id),
+      produtoNome: i.produto_nome,
+      categoria: i.categoria,
+      quantidade: i.quantidade,
+      precoUnitarioCentavos: paraCentavos(i.preco_unitario),
+      descontoCentavos: paraCentavos(i.desconto),
+      subtotalCentavos: paraCentavos(i.subtotal),
+    })),
+    dataHora: v.criado_em,
+    pagamento: formaDeApi[v.forma_pagamento],
+    status: statusDeApi[v.status],
+    subtotalCentavos: paraCentavos(v.subtotal),
+    descontoCentavos: paraCentavos(v.desconto),
+    taxaEntregaCentavos: paraCentavos(v.taxa_entrega),
+    totalCentavos: paraCentavos(v.total),
+    entrega: v.entrega && {
+      id: String(v.entrega.id),
+      status: v.entrega.status,
+      regiao: v.entrega.regiao,
+      entregadorId: v.entrega.entregador_id !== null ? String(v.entrega.entregador_id) : null,
+    },
   };
 }
 
-function gerarVendas(): RegistroVenda[] {
-  const vendas: RegistroVenda[] = [];
-  let sequencia = 0;
-
-  for (let dia = 0; dia < DIAS_DE_HISTORICO; dia++) {
-    const quantidadeNoDia = dia === 0 ? 18 : 6 + ((dia * 5) % 9);
-
-    for (let posicao = 0; posicao < quantidadeNoDia; posicao++) {
-      vendas.push(criarVenda(sequencia++, dia, posicao));
-    }
-  }
-
-  return vendas;
-}
-
-// Base simulada. Com o backend, isso vira o banco de dados.
-const vendas = gerarVendas();
-
-function intervaloDoPeriodo(periodo: PeriodoVendas): { de: string; ate: string } {
-  const hoje = new Date();
-
-  switch (periodo) {
-    case "hoje":
-      return { de: dataParaIso(hoje), ate: dataParaIso(hoje) };
-    case "ontem": {
-      const ontem = dataParaIso(dataDeDiasAtras(1));
-      return { de: ontem, ate: ontem };
-    }
-    case "7dias":
-      return { de: dataParaIso(dataDeDiasAtras(6)), ate: dataParaIso(hoje) };
-    case "30dias":
-      return { de: dataParaIso(dataDeDiasAtras(29)), ate: dataParaIso(hoje) };
-    case "mes":
-      return {
-        de: dataParaIso(new Date(hoje.getFullYear(), hoje.getMonth(), 1)),
-        ate: dataParaIso(hoje),
-      };
-  }
-}
-
-function filtrar(filtros: FiltrosVendas): RegistroVenda[] {
-  const { de, ate } = intervaloDoPeriodo(filtros.periodo);
-  const termo = normalizar(filtros.busca.trim());
-  const termoNumerico = filtros.busca.replace(/\D/g, "");
-
-  return vendas.filter((venda) => {
-    const dia = venda.dataHora.slice(0, 10);
-
-    if (dia < de || dia > ate) return false;
-    if (filtros.clienteId && venda.cliente?.id !== filtros.clienteId) return false;
-    if (filtros.pagamento !== "todos" && venda.pagamento !== filtros.pagamento) return false;
-    if (filtros.status !== "todos" && venda.status !== filtros.status) return false;
-    if (!termo) return true;
-
-    const nomeCliente = normalizar(venda.cliente?.nome ?? "Cliente Indefinido");
-    const produtos = venda.itens
-      .map((item) => normalizar(catalogoProdutos[item.produtoId].descricao))
-      .join(" ");
-    const cpf = venda.cliente?.cpf ?? "";
-
-    return (
-      nomeCliente.includes(termo) ||
-      produtos.includes(termo) ||
-      (termoNumerico.length > 0 && cpf.includes(termoNumerico))
-    );
-  });
-}
-
-const comparadores: Record<OrdenacaoVendas, (a: RegistroVenda, b: RegistroVenda) => number> = {
-  recentes: (a, b) => b.dataHora.localeCompare(a.dataHora),
-  antigas: (a, b) => a.dataHora.localeCompare(b.dataHora),
-  maior: (a, b) => b.totalCentavos - a.totalCentavos,
-  menor: (a, b) => a.totalCentavos - b.totalCentavos,
-};
-
 export async function buscarVendas({
+  periodo,
+  clienteId,
+  pagamento,
+  status,
+  busca,
   ordenacao,
   pagina,
   tamanhoPagina,
-  ...filtros
 }: ParametrosBuscaVendas): Promise<PaginaVendas> {
-  await esperar();
-
-  const ordenadas = filtrar(filtros).sort(comparadores[ordenacao]);
-  const inicio = (pagina - 1) * tamanhoPagina;
-
-  return { itens: ordenadas.slice(inicio, inicio + tamanhoPagina), total: ordenadas.length };
-}
-
-// Vendas canceladas não entram nos totais
-export async function buscarResumoVendas(filtros: FiltrosVendas): Promise<ResumoVendas> {
-  await esperar();
-
-  const validas = filtrar(filtros).filter((venda) => venda.status !== "cancelado");
-  const totalCentavos = validas.reduce((soma, venda) => soma + venda.totalCentavos, 0);
-  const clientes = new Set(validas.flatMap((venda) => (venda.cliente ? [venda.cliente.id] : [])));
+  const r = await api.get<{
+    itens: VendaApi[];
+    total: number;
+    totais: {
+      total_vendas: number;
+      quantidade_vendas: number;
+      clientes_atendidos: number;
+      ticket_medio: number;
+    };
+  }>("/vendas", {
+    periodo: periodoParaApi[periodo],
+    cliente_id: clienteId,
+    forma_pagamento: pagamento === "todos" ? undefined : formaParaApi[pagamento],
+    status: status === "todos" ? undefined : statusParaApi[status],
+    busca: busca.trim(),
+    ordem: ordemParaApi[ordenacao],
+    pagina,
+    tamanho: tamanhoPagina,
+  });
 
   return {
-    totalCentavos,
-    quantidade: validas.length,
-    clientesAtendidos: clientes.size,
-    ticketMedioCentavos: validas.length ? Math.round(totalCentavos / validas.length) : 0,
+    itens: r.itens.map(vendaDeApi),
+    total: r.total,
+    resumo: {
+      totalCentavos: paraCentavos(r.totais.total_vendas),
+      quantidade: r.totais.quantidade_vendas,
+      clientesAtendidos: r.totais.clientes_atendidos,
+      ticketMedioCentavos: paraCentavos(r.totais.ticket_medio),
+    },
   };
+}
+
+export async function registrarVenda(venda: NovaVenda): Promise<VendaRegistrada> {
+  const v = await api.post<VendaApi>("/vendas", {
+    origem: venda.origem,
+    cliente_id: venda.clienteId ? Number(venda.clienteId) : null,
+    endereco_id: venda.enderecoId ? Number(venda.enderecoId) : null,
+    forma_pagamento: formaParaApi[venda.pagamento],
+    observacao_entregador: venda.observacaoEntregador?.trim() || null,
+    itens: venda.itens.map((item) => ({
+      produto_id: Number(item.produtoId),
+      quantidade: item.quantidade,
+      desconto: paraReais(item.descontoCentavos),
+    })),
+  });
+
+  return {
+    ...vendaDeApi(v),
+    frequencia: v.frequencia
+      ? {
+          anteriorDias: v.frequencia.anterior_dias,
+          novaDias: v.frequencia.nova_dias,
+          recompraPrevistaEmDias: v.frequencia.recompra_prevista_em_dias,
+          dentroDaJanelaDeContato: v.frequencia.dentro_da_janela_de_contato,
+        }
+      : null,
+  };
+}
+
+export async function cancelarVenda(id: string): Promise<RegistroVenda> {
+  return vendaDeApi(await api.post<VendaApi>(`/vendas/${encodeURIComponent(id)}/cancelar`));
+}
+
+export async function buscarVendasDeHoje(tamanho = 30): Promise<RegistroVenda[]> {
+  const r = await buscarVendas({
+    periodo: "hoje",
+    clienteId: null,
+    pagamento: "todos",
+    status: "todos",
+    busca: "",
+    ordenacao: "recentes",
+    pagina: 1,
+    tamanhoPagina: tamanho,
+  });
+  return r.itens;
 }

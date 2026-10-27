@@ -5,12 +5,16 @@ interface ModalExcluirClienteProps {
   cliente: Cliente | null;
   aoFechar: () => void;
   aoConfirmar: (cliente: Cliente) => void;
+  executando?: boolean;
+  erro?: string | null;
 }
 
 export function ModalExcluirCliente({
   cliente,
   aoFechar,
   aoConfirmar,
+  executando = false,
+  erro = null,
 }: ModalExcluirClienteProps) {
   if (!cliente) return null;
 
@@ -37,9 +41,14 @@ export function ModalExcluirCliente({
 
         <p className="mt-2 text-sm text-gray-600">
           Tem certeza de que deseja excluir{" "}
-          <strong>{cliente.nome}</strong>? Verifique se essa ação é permitida
-          considerando o histórico de vendas e entregas desse cliente.
+          <strong>{cliente.nome}</strong>?
         </p>
+
+        {erro && (
+          <p role="alert" className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+            {erro}
+          </p>
+        )}
 
         <div className="mt-6 flex justify-end gap-3">
           <button
@@ -53,9 +62,10 @@ export function ModalExcluirCliente({
           <button
             type="button"
             onClick={() => aoConfirmar(cliente)}
-            className="rounded-lg bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-700"
+            disabled={executando}
+            className="rounded-lg bg-red-600 disabled:opacity-60 px-4 py-2 font-medium text-white hover:bg-red-700"
           >
-            Excluir cliente
+            {executando ? "Excluindo..." : "Excluir cliente"}
           </button>
         </div>
       </section>

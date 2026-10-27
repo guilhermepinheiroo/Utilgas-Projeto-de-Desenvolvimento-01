@@ -5,16 +5,14 @@ export interface OpcaoSeletor<T extends string> {
   rotulo: string;
 }
 
-export type TipoProduto = "botijao" | "agua";
-
-export type StatusEntrega = "Entregue" | "Pendente" | "A caminho";
+export type TipoProduto = "botijao" | "agua" | "acessorio";
 
 export interface Venda {
   id: string;
   produto: string;
   tipo: TipoProduto;
   horario: string;
-  status: StatusEntrega;
+  status: string; // "Pendente", "Entregue", "Portaria", "Cancelada"...
 }
 
 export interface PontoGraficoVendas {

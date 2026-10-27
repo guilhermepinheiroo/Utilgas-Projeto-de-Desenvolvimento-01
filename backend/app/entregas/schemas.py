@@ -8,6 +8,7 @@ StatusEntrega = Literal["pendente", "entregue", "cancelada"]
 
 class EntregaItem(BaseModel):
     produto_nome: str
+    categoria: str | None = None
     quantidade: int
 
 
@@ -22,6 +23,7 @@ class EntregaOut(BaseModel):
     entregador_id: int | None = None
     entregador_nome: str | None = None
     endereco: str | None = None
+    bairro: str | None = None
     itens: list[EntregaItem] = []
     valor: float
     observacao: str | None = None
@@ -43,7 +45,7 @@ class EntregaUpdate(BaseModel):
 
 
 class ResumoEntregas(BaseModel):
-    """Cards do topo: total de hoje, pendentes, concluídas."""
+    """Cards do topo: total do dia (sem canceladas), pendentes e concluídas do dia."""
 
     total_hoje: int
     pendentes: int

@@ -7,8 +7,7 @@ import {
   rotulosPagamento,
   rotulosStatusVenda,
 } from "../../constants/Vendas";
-import { iconePorProduto } from "../../constants/IconesEstoque";
-import { catalogoProdutos } from "../../constants/ProdutosEstoque";
+import { iconeDaCategoria } from "../../constants/IconesEstoque";
 import type { RegistroVenda } from "../../types/Vendas";
 import { mascararCpf } from "../../utils/FormataCpf";
 import { formatarDataHora } from "../../utils/FormataData";
@@ -40,27 +39,25 @@ export function CartaoVenda({ venda, aoVerDetalhes }: CartaoVendaProps) {
             <span className="text-[11px] text-verde-painel">
               {venda.cliente?.cpf ? `CPF ${mascararCpf(venda.cliente.cpf)}` : "CPF não informado"}
             </span>
-            <Selo cor="escuro">{rotulosOrigem[venda.origem]}</Selo>
+            <span className="flex items-center gap-1">
+              <Selo cor="escuro">{rotulosOrigem[venda.origem]}</Selo>
+              <span className="text-[10px] text-neutral-400">#{venda.numero}</span>
+            </span>
           </div>
         </div>
 
         <ul className="flex flex-col gap-2 md:border-l md:border-neutral-300 md:px-4">
-          {venda.itens.map((item) => {
-            const produto = catalogoProdutos[item.produtoId];
-            const icone = produto.tipoIcone ? iconePorProduto[produto.tipoIcone] : undefined;
-
-            return (
-              <li key={item.produtoId} className="flex items-center gap-2 text-xs text-neutral-800">
-                {icone ? (
-                  <img src={icone} alt="" className="size-5 shrink-0 object-contain" />
-                ) : (
-                  <span className="size-5 shrink-0" aria-hidden />
-                )}
-                {item.quantidade > 1 && <span className="font-semibold">{item.quantidade}×</span>}
-                <span>{produto.descricao}</span>
-              </li>
-            );
-          })}
+          {venda.itens.map((item) => (
+            <li key={item.produtoId} className="flex items-center gap-2 text-xs text-neutral-800">
+              <img
+                src={iconeDaCategoria(item.categoria)}
+                alt=""
+                className="size-5 shrink-0 object-contain"
+              />
+              {item.quantidade > 1 && <span className="font-semibold">{item.quantidade}×</span>}
+              <span>{item.produtoNome}</span>
+            </li>
+          ))}
         </ul>
 
         <div className="flex flex-col gap-2 md:border-l md:border-neutral-300 md:px-4">

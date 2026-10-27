@@ -50,6 +50,7 @@ class MovimentacaoOut(BaseModel):
     id: int
     produto_id: int
     produto_nome: str
+    produto_categoria: str | None = None
     tipo: Literal["entrada", "saida"]
     tipo_estoque: Literal["cheio", "vazio"] = "cheio"
     quantidade: int
@@ -73,5 +74,6 @@ class ResumoEstoque(BaseModel):
     total_em_estoque: int
     total_vazios: int = 0
     entradas_hoje: int
+    entradas_mes: int = 0
     saidas_mes: int
     itens_com_baixo_estoque: int

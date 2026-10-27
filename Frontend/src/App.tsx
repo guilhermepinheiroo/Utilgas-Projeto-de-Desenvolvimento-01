@@ -1,12 +1,14 @@
 import { Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { useAuth } from "./auth/useAuth";
 import { Sidebar } from "./components/Sidebar";
 import { Atendimento } from "./pages/Atendimento";
-import { Dashboard } from "./pages/Dashboard";
 import { Clientes } from "./pages/Clientes";
-import { Vendas } from "./pages/Vendas";
-import { Portaria } from "./pages/Portaria";
+import { Dashboard } from "./pages/Dashboard";
 import { Entregas } from "./pages/Entregas";
 import { Estoque } from "./pages/Estoque";
+import { Login } from "./pages/Login";
+import { Portaria } from "./pages/Portaria";
+import { Vendas } from "./pages/Vendas";
 
 function LayoutPrincipal() {
   return (
@@ -20,6 +22,17 @@ function LayoutPrincipal() {
 }
 
 export default function App() {
+  const { usuario } = useAuth();
+
+  if (!usuario) {
+    return (
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    );
+  }
+
   return (
     <Routes>
       <Route element={<LayoutPrincipal />}>

@@ -1,21 +1,21 @@
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.auth.router import router as auth_router
 from app.clientes.router import router as clientes_router
 from app.core.auth import get_current_user
 from app.core.config import settings
+from app.dashboard.router import router as dashboard_router
 from app.entregas.router import entregadores_router, regioes_router
 from app.entregas.router import router as entregas_router
 from app.produtos.router import estoque_router
 from app.produtos.router import router as produtos_router
 from app.vendas.router import router as vendas_router
-from app.dashboard.router import router as dashboard_router
 
 app = FastAPI(
     title="UtilGás API",
-    version="0.1.0",
-    description="API do sistema de gerenciamento da revenda de gás. "
-    "Rotas com 501 ainda estão sem implementação (contrato).",
+    version="0.2.0",
+    description="API do sistema de gerenciamento da revenda de gás.",
 )
 
 app.add_middleware(
@@ -38,6 +38,9 @@ def me(user: dict = Depends(get_current_user)):
     return {"id": user["id"], "nome": user["nome"], "papel": user["papel"]}
 
 
+# Login e renovação de token não exigem usuário autenticado.
+app.include_router(auth_router)
+
 # Todas as rotas abaixo exigem usuário autenticado.
 protegido = [Depends(get_current_user)]
 for r in (
@@ -48,6 +51,6 @@ for r in (
     entregas_router,
     entregadores_router,
     regioes_router,
-   dashboard_router,
+    dashboard_router,
 ):
     app.include_router(r, dependencies=protegido)

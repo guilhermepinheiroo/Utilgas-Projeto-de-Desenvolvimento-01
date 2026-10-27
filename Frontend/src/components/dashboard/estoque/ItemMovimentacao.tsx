@@ -1,6 +1,5 @@
 import { ItemLista } from "../ItemLista";
-import { iconePorProduto } from "../../../constants/IconesEstoque";
-import { catalogoProdutos } from "../../../constants/ProdutosEstoque";
+import { iconeDaCategoria } from "../../../constants/IconesEstoque";
 import type { Movimentacao, TipoMovimentacao } from "../../../types/Estoque";
 
 import iconeSetaVerde from "../../../assets/icon-seta-verde.png";
@@ -12,13 +11,13 @@ const configPorTipo: Record<TipoMovimentacao, { texto: string; icone: string }> 
 };
 
 export function ItemMovimentacao({ movimentacao }: { movimentacao: Movimentacao }) {
-  const produto = catalogoProdutos[movimentacao.produtoId];
   const config = configPorTipo[movimentacao.tipo];
+  const vazio = movimentacao.tipoEstoque === "vazio" ? " (vazio)" : "";
 
   return (
     <ItemLista
-      icone={produto.tipoIcone ? iconePorProduto[produto.tipoIcone] : undefined}
-      titulo={produto.nome}
+      icone={iconeDaCategoria(movimentacao.categoria)}
+      titulo={`${movimentacao.quantidade}× ${movimentacao.produtoNome}${vazio}`}
       subtitulo={`${movimentacao.horario} • ${config.texto}`}
       acao={<img src={config.icone} alt={config.texto} className="size-4 object-contain" />}
     />
