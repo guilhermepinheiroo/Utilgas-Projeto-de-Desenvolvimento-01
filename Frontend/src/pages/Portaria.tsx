@@ -2,14 +2,17 @@ import { useMemo, useState } from "react";
 import { CampoBusca } from "../components/CampoBusca";
 import { Dialogo } from "../components/Dialogo";
 import { ModalSelecionarCliente } from "../components/ModalSelecionarCliente";
+import { SeletorCartao } from "../components/pagamento/SeletorCartao";
 import { iconeDaCategoria } from "../constants/IconesEstoque";
 import { useProdutos } from "../hooks/UseProdutos";
 import { useAcao } from "../hooks/UsenAcao";
 import { registrarVenda } from "../services/Vendas";
+import type { CartaoSelecionado } from "../types/Cartao";
 import type { Cliente } from "../types/clientes";
 import type { CategoriaProduto, Produto } from "../types/Produtos";
 import type { FormaPagamento } from "../types/Vendas";
 import { formatarCentavos } from "../utils/FormatacaoMoeda";
+import { cartaoIncompleto, cartaoVazio, pagaComCartao } from "../utils/Pagamento";
 import { normalizar } from "../utils/Texto";
 
 import iconeBusca from "../assets/telaclientes/icon-busca.png";
@@ -82,6 +85,7 @@ export function Portaria() {
   const [carrinho, setCarrinho] = useState<ItemCarrinho[]>([]);
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [pagamento, setPagamento] = useState<FormaPagamento>("pix");
+  const [cartao, setCartao] = useState<CartaoSelecionado>(cartaoVazio);
   const [modalClienteAberto, setModalClienteAberto] = useState(false);
   const [modalCancelamentoAberto, setModalCancelamentoAberto] = useState(false);
   const [mensagem, setMensagem] = useState<string | null>(null);
@@ -138,6 +142,7 @@ export function Portaria() {
     setCarrinho([]);
     setCliente(null);
     setPagamento("pix");
+    setCartao(cartaoVazio);
   }
 
   async function finalizarVenda() {
@@ -145,6 +150,7 @@ export function Portaria() {
       setMensagem("Adicione pelo menos um produto ao carrinho.");
       return;
     }
+    if (cartaoIncompleto(pagamento, cartao)) return;
 
     let numero = 0;
     let totalVenda = 0;
@@ -154,6 +160,7 @@ export function Portaria() {
         clienteId: cliente?.id ?? null,
         enderecoId: null,
         pagamento,
+        cartao,
         itens: carrinho.map((item) => ({
           produtoId: item.produto.id,
           quantidade: item.quantidade,
@@ -431,11 +438,19 @@ export function Portaria() {
             </div>
           </fieldset>
 
+          {pagaComCartao(pagamento) && (
+            <div className="mt-3">
+              <SeletorCartao valor={cartao} aoAlterar={setCartao} />
+            </div>
+          )}
+
           <div className="mt-5 grid gap-2">
             <button
               type="button"
               onClick={() => void finalizarVenda()}
-              disabled={venda.executando || carrinho.length === 0}
+              disabled={
+                venda.executando || carrinho.length === 0 || cartaoIncompleto(pagamento, cartao)
+              }
               className="rounded-md bg-sidebar py-2.5 text-xs font-bold text-white hover:bg-sidebar-ativo disabled:opacity-50"
             >
               {venda.executando ? "Registrando..." : "Finalizar Venda"}

@@ -28,6 +28,7 @@ router = APIRouter(prefix="/vendas", tags=["Vendas"])
 
 SELECT_VENDA = (
     "*, clientes(nome, cpf_cnpj, telefone), "
+    "maquininhas(nome), bandeiras(nome), "
     "itens_venda(*, produtos(nome, categoria)), "
     "entregas(id, status, entregador_id, enderecos(regioes(nome)))"
 )
@@ -62,6 +63,10 @@ def _venda_out(row: dict) -> VendaOut:
         cliente_cpf=cliente.get("cpf_cnpj"),
         cliente_telefone=cliente.get("telefone"),
         forma_pagamento=row["forma_pagamento"],
+        maquininha_id=row.get("maquininha_id"),
+        maquininha_nome=(row.get("maquininhas") or {}).get("nome"),
+        bandeira_id=row.get("bandeira_id"),
+        bandeira_nome=(row.get("bandeiras") or {}).get("nome"),
         subtotal=row["subtotal"],
         desconto=row["desconto"],
         taxa_entrega=row["taxa_entrega"],
@@ -190,6 +195,8 @@ def listar_vendas(
     data_fim: date | None = None,
     cliente_id: int | None = None,
     forma_pagamento: FormaPagamento | None = None,
+    maquininha_id: int | None = None,
+    bandeira_id: int | None = None,
     status: StatusVenda | None = None,
     origem: Origem | None = None,
     busca: str | None = Query(None, description="Cliente, produto, CPF ou nº do pedido"),
@@ -210,6 +217,10 @@ def listar_vendas(
         q = q.eq("cliente_id", cliente_id)
     if forma_pagamento:
         q = q.eq("forma_pagamento", forma_pagamento)
+    if maquininha_id is not None:
+        q = q.eq("maquininha_id", maquininha_id)
+    if bandeira_id is not None:
+        q = q.eq("bandeira_id", bandeira_id)
     if status:
         q = q.eq("status", status)
     if origem:

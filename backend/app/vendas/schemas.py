@@ -27,6 +27,12 @@ class VendaCreate(BaseModel):
     )
     endereco_id: int | None = Field(None, description="Obrigatório no atendimento (gera entrega)")
     forma_pagamento: FormaPagamento
+    maquininha_id: int | None = Field(
+        None, description="Obrigatória no pagamento com cartão; proibida nas outras formas"
+    )
+    bandeira_id: int | None = Field(
+        None, description="Obrigatória no pagamento com cartão; proibida nas outras formas"
+    )
     observacao_entregador: str | None = None
     itens: list[ItemVendaIn] = Field(min_length=1)
 
@@ -68,6 +74,10 @@ class VendaOut(BaseModel):
     cliente_cpf: str | None = None
     cliente_telefone: str | None = None
     forma_pagamento: FormaPagamento
+    maquininha_id: int | None = None
+    maquininha_nome: str | None = None
+    bandeira_id: int | None = None
+    bandeira_nome: str | None = None
     subtotal: float
     desconto: float
     taxa_entrega: float

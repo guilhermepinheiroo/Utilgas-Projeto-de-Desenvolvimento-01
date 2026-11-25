@@ -1,6 +1,9 @@
+import type { CartaoSelecionado } from "../../types/Cartao";
 import type { Endereco } from "../../types/clientes";
 import type { FormaPagamento } from "../../types/Vendas";
 import { formatarCentavos } from "../../utils/FormatacaoMoeda";
+import { pagaComCartao } from "../../utils/Pagamento";
+import { SeletorCartao } from "../pagamento/SeletorCartao";
 import { subtotalDoItem, type ItemPedido } from "./tipos";
 
 import iconeCartao from "../../assets/icon-cartao.png";
@@ -19,6 +22,8 @@ interface EtapaPagamentoProps {
   endereco: Endereco | null;
   pagamento: FormaPagamento;
   aoAlterarPagamento: (forma: FormaPagamento) => void;
+  cartao: CartaoSelecionado;
+  aoAlterarCartao: (cartao: CartaoSelecionado) => void;
   observacao: string;
   aoAlterarObservacao: (texto: string) => void;
 }
@@ -28,6 +33,8 @@ export function EtapaPagamento({
   endereco,
   pagamento,
   aoAlterarPagamento,
+  cartao,
+  aoAlterarCartao,
   observacao,
   aoAlterarObservacao,
 }: EtapaPagamentoProps) {
@@ -61,6 +68,8 @@ export function EtapaPagamento({
             ))}
           </div>
         </fieldset>
+
+        {pagaComCartao(pagamento) && <SeletorCartao valor={cartao} aoAlterar={aoAlterarCartao} />}
 
         <label className="flex flex-col gap-1 text-sm font-medium">
           Observação para o entregador

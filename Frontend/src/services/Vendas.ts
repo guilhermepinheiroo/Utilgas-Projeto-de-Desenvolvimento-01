@@ -9,6 +9,7 @@ import type {
   StatusVenda,
   VendaRegistrada,
 } from "../types/Vendas";
+import { pagaComCartao } from "../utils/Pagamento";
 import { api, paraCentavos, paraReais } from "./Api";
 
 type FormaApi = "pix" | "dinheiro" | "cartao_credito" | "cartao_debito";
@@ -22,6 +23,8 @@ interface VendaApi {
   cliente_nome: string | null;
   cliente_cpf: string | null;
   forma_pagamento: FormaApi;
+  maquininha_nome: string | null;
+  bandeira_nome: string | null;
   subtotal: number;
   desconto: number;
   taxa_entrega: number;
@@ -111,6 +114,10 @@ function vendaDeApi(v: VendaApi): RegistroVenda {
     })),
     dataHora: v.criado_em,
     pagamento: formaDeApi[v.forma_pagamento],
+    cartao:
+      v.maquininha_nome || v.bandeira_nome
+        ? { maquininha: v.maquininha_nome, bandeira: v.bandeira_nome }
+        : null,
     status: statusDeApi[v.status],
     subtotalCentavos: paraCentavos(v.subtotal),
     descontoCentavos: paraCentavos(v.desconto),
@@ -168,11 +175,14 @@ export async function buscarVendas({
 }
 
 export async function registrarVenda(venda: NovaVenda): Promise<VendaRegistrada> {
+  const cartao = pagaComCartao(venda.pagamento) ? venda.cartao : undefined;
   const v = await api.post<VendaApi>("/vendas", {
     origem: venda.origem,
     cliente_id: venda.clienteId ? Number(venda.clienteId) : null,
     endereco_id: venda.enderecoId ? Number(venda.enderecoId) : null,
     forma_pagamento: formaParaApi[venda.pagamento],
+    maquininha_id: cartao?.maquininhaId ? Number(cartao.maquininhaId) : null,
+    bandeira_id: cartao?.bandeiraId ? Number(cartao.bandeiraId) : null,
     observacao_entregador: venda.observacaoEntregador?.trim() || null,
     itens: venda.itens.map((item) => ({
       produto_id: Number(item.produtoId),

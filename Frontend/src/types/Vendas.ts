@@ -1,3 +1,5 @@
+import type { CartaoSelecionado, CartaoUsado } from "./Cartao";
+
 export type FormaPagamento = "pix" | "dinheiro" | "debito" | "credito";
 export type StatusVenda = "pago" | "pendente" | "cancelado";
 export type OrigemVenda = "portaria" | "entrega";
@@ -38,6 +40,7 @@ export interface RegistroVenda {
   itens: ProdutoVendido[];
   dataHora: string; // ISO com fuso
   pagamento: FormaPagamento;
+  cartao: CartaoUsado | null;
   status: StatusVenda;
   subtotalCentavos: number;
   descontoCentavos: number;
@@ -68,6 +71,7 @@ export interface NovaVenda {
   clienteId: string | null;
   enderecoId: string | null;
   pagamento: FormaPagamento;
+  cartao?: CartaoSelecionado;
   observacaoEntregador?: string;
   itens: ItemNovaVenda[];
 }

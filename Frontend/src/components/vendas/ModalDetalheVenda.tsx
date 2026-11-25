@@ -60,7 +60,11 @@ function ConteudoDetalhe({
         <Campo rotulo="Origem">
           <Selo cor="escuro">{rotulosOrigem[venda.origem]}</Selo>
         </Campo>
-        <Campo rotulo="Pagamento">{rotulosPagamento[venda.pagamento]}</Campo>
+        <Campo rotulo="Pagamento">
+          {rotulosPagamento[venda.pagamento]}
+          {venda.cartao?.bandeira && ` · ${venda.cartao.bandeira}`}
+          {venda.cartao?.maquininha && ` · ${venda.cartao.maquininha}`}
+        </Campo>
         <Campo rotulo="Status">
           <Selo cor={corPorStatusVenda[venda.status]}>{rotulosStatusVenda[venda.status]}</Selo>
         </Campo>

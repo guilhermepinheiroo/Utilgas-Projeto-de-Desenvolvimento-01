@@ -513,3 +513,112 @@ def test_service_role_consegue_chamar(con, loja):
             (Jsonb(pedido(loja, [{"produto_id": loja["p13"], "quantidade": 1}])),),
         ).fetchone()[0]
     assert res["venda"]["id"]
+
+
+# ---------------------------------------------------------------------
+# Pagamento com cartão: maquininha e bandeira
+# ---------------------------------------------------------------------
+@pytest.fixture
+def cartao(con):
+    tag = uuid.uuid4().hex[:8]
+
+    def criar(tabela, nome, ativo=True):
+        return con.execute(
+            f"insert into public.{tabela} (nome, ativo) values (%s, %s) returning id",
+            (nome, ativo),
+        ).fetchone()[0]
+
+    ids = {
+        "maquininha": criar("maquininhas", f"Stone-{tag}"),
+        "maquininha_inativa": criar("maquininhas", f"Cielo-{tag}", ativo=False),
+        "bandeira": criar("bandeiras", f"Visa-{tag}"),
+        "bandeira_inativa": criar("bandeiras", f"Amex-{tag}", ativo=False),
+    }
+
+    yield ids
+
+    maquininhas = [ids["maquininha"], ids["maquininha_inativa"]]
+    bandeiras = [ids["bandeira"], ids["bandeira_inativa"]]
+    con.execute(
+        "update public.vendas set maquininha_id = null, bandeira_id = null"
+        " where maquininha_id = any(%s) or bandeira_id = any(%s)",
+        (maquininhas, bandeiras),
+    )
+    con.execute("delete from public.maquininhas where id = any(%s)", (maquininhas,))
+    con.execute("delete from public.bandeiras where id = any(%s)", (bandeiras,))
+
+
+def pedido_no_cartao(loja, cartao, forma="cartao_credito", **extra):
+    dados = {"maquininha_id": cartao["maquininha"], "bandeira_id": cartao["bandeira"]} | extra
+    return pedido(loja, [{"produto_id": loja["p13"], "quantidade": 2}], forma_pagamento=forma, **dados)
+
+
+@pytest.mark.parametrize("forma", ["cartao_credito", "cartao_debito"])
+def test_venda_no_cartao_grava_maquininha_e_bandeira(con, loja, cartao, forma):
+    res = venda(con, pedido_no_cartao(loja, cartao, forma))
+    assert res["venda"]["forma_pagamento"] == forma
+    assert res["venda"]["maquininha_id"] == cartao["maquininha"]
+    assert res["venda"]["bandeira_id"] == cartao["bandeira"]
+    assert estoque(con, loja["p13"]) == (8, 2)
+
+
+@pytest.mark.parametrize("faltando", ["maquininha_id", "bandeira_id"])
+def test_cartao_sem_maquininha_ou_bandeira_e_recusado(con, loja, cartao, faltando):
+    payload = pedido_no_cartao(loja, cartao, **{faltando: None})
+    assert erro_de(con, "registrar_venda", Jsonb(payload), None) == "UG422"
+    assert estoque(con, loja["p13"]) == (10, 0)
+    assert contar(con, "vendas", cliente_id=loja["cliente"]) == 0
+
+
+@pytest.mark.parametrize("campo", ["maquininha_id", "bandeira_id"])
+def test_cartao_com_maquininha_ou_bandeira_inexistente_da_404(con, loja, cartao, campo):
+    payload = pedido_no_cartao(loja, cartao, **{campo: 999_999_999})
+    assert erro_de(con, "registrar_venda", Jsonb(payload), None) == "UG404"
+    assert estoque(con, loja["p13"]) == (10, 0)
+
+
+@pytest.mark.parametrize(
+    "campo, chave", [("maquininha_id", "maquininha_inativa"), ("bandeira_id", "bandeira_inativa")]
+)
+def test_cartao_com_maquininha_ou_bandeira_inativa_e_recusado(con, loja, cartao, campo, chave):
+    payload = pedido_no_cartao(loja, cartao, **{campo: cartao[chave]})
+    assert erro_de(con, "registrar_venda", Jsonb(payload), None) == "UG422"
+    assert estoque(con, loja["p13"]) == (10, 0)
+
+
+@pytest.mark.parametrize("forma", ["pix", "dinheiro"])
+def test_maquininha_ou_bandeira_fora_do_cartao_e_recusada(con, loja, cartao, forma):
+    payload = pedido_no_cartao(loja, cartao, forma)
+    assert erro_de(con, "registrar_venda", Jsonb(payload), None) == "UG422"
+    assert contar(con, "vendas", cliente_id=loja["cliente"]) == 0
+
+
+def test_maquininha_com_id_invalido_vira_422(con, loja, cartao):
+    payload = pedido_no_cartao(loja, cartao, maquininha_id="abc")
+    assert erro_de(con, "registrar_venda", Jsonb(payload), None) == "UG422"
+
+
+def test_pix_continua_sem_maquininha_e_bandeira(con, loja):
+    res = venda(con, pedido(loja, [{"produto_id": loja["p13"], "quantidade": 1}]))
+    assert res["venda"]["maquininha_id"] is None
+    assert res["venda"]["bandeira_id"] is None
+
+
+def test_tabela_vendas_recusa_maquininha_fora_do_cartao(con, loja, cartao):
+    with pytest.raises(psycopg.errors.CheckViolation):
+        con.execute(
+            "insert into public.vendas (origem, forma_pagamento, maquininha_id, subtotal, total)"
+            " values ('portaria', 'pix', %s, 0, 0)",
+            (cartao["maquininha"],),
+        )
+
+
+@pytest.mark.parametrize("tabela", ["maquininhas", "bandeiras"])
+def test_nome_repetido_e_recusado_sem_diferenciar_maiusculas(con, tabela):
+    nome = f"Getnet-{uuid.uuid4().hex[:8]}"
+    con.execute(f"insert into public.{tabela} (nome) values (%s)", (nome,))
+    try:
+        with pytest.raises(psycopg.errors.UniqueViolation):
+            con.execute(f"insert into public.{tabela} (nome) values (%s)", (f" {nome.upper()} ",))
+    finally:
+        con.execute(f"delete from public.{tabela} where nome = %s", (nome,))
