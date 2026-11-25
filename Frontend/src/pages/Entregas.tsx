@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { ModalAcoesEntrega } from "../components/entregas/ModalAcoesEntregas";
+import { ModalEntregadores } from "../components/entregas/ModalEntregadores";
 import { TabelaEntregas } from "../components/entregas/TabelaEntregas";
 import type { OpcaoSeletor } from "../components/dashboard/SeletorSegmentado";
 import { CampoBusca } from "../components/CampoBusca";
@@ -19,8 +20,13 @@ import iconeSetaVermelha from "../assets/icon-seta-vermelha.png";
 
 export function Entregas() {
   const painel = useEntregas();
-  const { entregadores, erro: erroEntregadores } = useEntregadores();
+  const {
+    entregadores,
+    erro: erroEntregadores,
+    recarregar: recarregarEntregadores,
+  } = useEntregadores();
   const [entregaAberta, setEntregaAberta] = useState<Entrega | null>(null);
+  const [modalEntregadoresAberto, setModalEntregadoresAberto] = useState(false);
 
   const opcoesEntregador = useMemo<OpcaoSeletor<string>[]>(
     () => [
@@ -55,7 +61,16 @@ export function Entregas() {
 
   return (
     <div className="flex flex-col gap-6 p-8">
-      <h1 className="text-2xl font-bold text-neutral-900">Gerenciamento de Entregas</h1>
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold text-neutral-900">Gerenciamento de Entregas</h1>
+        <button
+          type="button"
+          onClick={() => setModalEntregadoresAberto(true)}
+          className="rounded-md bg-sidebar px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+        >
+          Entregadores
+        </button>
+      </header>
 
       <section aria-label="Resumo das entregas" className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <CardResumo
@@ -155,6 +170,12 @@ export function Entregas() {
         erroEntregadores={erroEntregadores}
         aoFechar={() => setEntregaAberta(null)}
         aoAtualizar={painel.recarregar}
+      />
+
+      <ModalEntregadores
+        aberto={modalEntregadoresAberto}
+        aoFechar={() => setModalEntregadoresAberto(false)}
+        aoAlterarEntregadores={recarregarEntregadores}
       />
     </div>
   );
