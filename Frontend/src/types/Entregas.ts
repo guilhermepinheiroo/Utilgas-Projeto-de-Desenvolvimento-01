@@ -56,3 +56,13 @@ export interface ResumoEntregas {
   pendentes: number;
   concluidas: number;
 }
+
+export interface EntregadorCadastrado extends Entregador {
+  telefone: string | null;
+  ativo: boolean;
+}
+
+export interface EntregadorInput {
+  nome: string;
+  telefone: string;
+}

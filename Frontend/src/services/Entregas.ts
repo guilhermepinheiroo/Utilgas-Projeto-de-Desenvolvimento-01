@@ -1,6 +1,8 @@
 import type {
   Entrega,
   Entregador,
+  EntregadorCadastrado,
+  EntregadorInput,
   PaginaEntregas,
   ParametrosBuscaEntregas,
   ResumoEntregas,
@@ -106,4 +108,52 @@ export async function cancelarEntrega(id: string, motivo?: string): Promise<void
     status: "cancelada",
     ...(motivo ? { observacao: `Cancelada: ${motivo}` } : {}),
   });
+}
+
+interface EntregadorApi {
+  id: number;
+  nome: string;
+  telefone: string | null;
+  ativo: boolean;
+}
+
+function entregadorCadastradoDeApi(e: EntregadorApi): EntregadorCadastrado {
+  return { id: String(e.id), nome: e.nome, telefone: e.telefone, ativo: e.ativo };
+}
+
+function entregadorParaApi(input: EntregadorInput) {
+  return { nome: input.nome.trim(), telefone: input.telefone.replace(/\D/g, "") || null };
+}
+
+export async function listarEntregadoresCadastrados(
+  ativos: boolean
+): Promise<EntregadorCadastrado[]> {
+  const lista = await api.get<EntregadorApi[]>("/entregadores", { ativo: ativos });
+  return lista.map(entregadorCadastradoDeApi);
+}
+
+export async function cadastrarEntregador(input: EntregadorInput): Promise<EntregadorCadastrado> {
+  const criado = await api.post<EntregadorApi>("/entregadores", entregadorParaApi(input));
+  return entregadorCadastradoDeApi(criado);
+}
+
+export async function editarEntregador(
+  id: string,
+  input: EntregadorInput
+): Promise<EntregadorCadastrado> {
+  const editado = await api.patch<EntregadorApi>(
+    `/entregadores/${encodeURIComponent(id)}`,
+    entregadorParaApi(input)
+  );
+  return entregadorCadastradoDeApi(editado);
+}
+
+export async function alterarSituacaoEntregador(
+  id: string,
+  ativo: boolean
+): Promise<EntregadorCadastrado> {
+  const alterado = await api.patch<EntregadorApi>(`/entregadores/${encodeURIComponent(id)}`, {
+    ativo,
+  });
+  return entregadorCadastradoDeApi(alterado);
 }
