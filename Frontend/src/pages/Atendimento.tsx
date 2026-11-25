@@ -12,9 +12,11 @@ import { CamposCliente, CamposEndereco } from "../components/clientes/FormClient
 import { useAcao } from "../hooks/UsenAcao";
 import { buscarClientePorTelefone, criarCliente, obterCliente } from "../services/Clientes";
 import { registrarVenda } from "../services/Vendas";
+import type { CartaoSelecionado } from "../types/Cartao";
 import type { ClienteDetalhado, ClienteInput, EnderecoInput } from "../types/clientes";
 import type { FormaPagamento, VendaRegistrada } from "../types/Vendas";
 import { telefoneCompleto } from "../utils/FormatacaoTelefone";
+import { cartaoIncompleto, cartaoVazio } from "../utils/Pagamento";
 import {
   clienteValido,
   clienteVazio,
@@ -52,6 +54,7 @@ export function Atendimento() {
   const [enderecoId, setEnderecoId] = useState<string | null>(null);
   const [itens, setItens] = useState<ItemPedido[]>([]);
   const [pagamento, setPagamento] = useState<FormaPagamento>("pix");
+  const [cartao, setCartao] = useState<CartaoSelecionado>(cartaoVazio);
   const [observacao, setObservacao] = useState("");
   const [vendaRegistrada, setVendaRegistrada] = useState<VendaRegistrada | null>(null);
 
@@ -68,6 +71,7 @@ export function Atendimento() {
     setEnderecoId(principal?.id ?? null);
     setItens([]);
     setPagamento("pix");
+    setCartao(cartaoVazio);
     setObservacao("");
     setEtapa(0);
     setTela("venda");
@@ -122,7 +126,9 @@ export function Atendimento() {
   }
 
   async function finalizar() {
-    if (!cliente || !endereco || itens.length === 0) return;
+    if (!cliente || !endereco || itens.length === 0 || cartaoIncompleto(pagamento, cartao)) {
+      return;
+    }
 
     let registrada: VendaRegistrada | null = null;
     const ok = await venda.executar(async () => {
@@ -131,6 +137,7 @@ export function Atendimento() {
         clienteId: cliente.id,
         enderecoId: endereco.id,
         pagamento,
+        cartao,
         observacaoEntregador: observacao,
         itens: itens.map((item) => ({
           produtoId: item.produto.id,
@@ -236,6 +243,8 @@ export function Atendimento() {
             endereco={endereco}
             pagamento={pagamento}
             aoAlterarPagamento={setPagamento}
+            cartao={cartao}
+            aoAlterarCartao={setCartao}
             observacao={observacao}
             aoAlterarObservacao={setObservacao}
           />
@@ -266,7 +275,12 @@ export function Atendimento() {
           <button
             type="button"
             onClick={() => void finalizar()}
-            disabled={venda.executando || itens.length === 0 || !endereco}
+            disabled={
+              venda.executando ||
+              itens.length === 0 ||
+              !endereco ||
+              cartaoIncompleto(pagamento, cartao)
+            }
             className={classeBotaoPrimario}
           >
             {venda.executando ? "Registrando..." : "Registrar Venda"}
