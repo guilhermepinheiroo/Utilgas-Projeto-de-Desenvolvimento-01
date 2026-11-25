@@ -3,7 +3,7 @@ import { useConsulta } from "../../hooks/UseConsulta";
 import { buscarRegioes } from "../../services/Clientes";
 import type { ClienteInput, EnderecoInput, StatusCliente } from "../../types/clientes";
 import { formatarCentavos } from "../../utils/FormatacaoMoeda";
-import { formatarTelefone } from "../../utils/FormatacaoTelefone";
+import { digitosDoTelefone, formatarTelefone } from "../../utils/FormatacaoTelefone";
 
 const classeCampo =
   "w-full rounded-md border border-neutral-300 px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-verde-painel";
@@ -51,7 +51,7 @@ export function CamposCliente({ valor, aoAlterar, mostrarStatus = true }: Campos
           type="tel"
           inputMode="numeric"
           value={formatarTelefone(valor.whatsapp)}
-          onChange={(e) => alterar("whatsapp", e.target.value.replace(/\D/g, ""))}
+          onChange={(e) => alterar("whatsapp", digitosDoTelefone(e.target.value))}
           placeholder="(53) 98812-4477"
           className={classeCampo}
         />

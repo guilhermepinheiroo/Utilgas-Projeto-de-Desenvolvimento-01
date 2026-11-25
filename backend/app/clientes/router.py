@@ -20,6 +20,7 @@ from app.clientes.schemas import (
 )
 from app.core.auth import get_db
 from app.core.frequencia import datas_de_compra, dia_local, indicadores
+from app.core.telefone import telefone_nacional
 from app.core.tempo import inicio_do_mes, para_iso_utc
 
 router = APIRouter(prefix="/clientes", tags=["Clientes"])
@@ -35,7 +36,7 @@ def so_digitos(valor: str | None) -> str:
 
 
 def _validar_telefone(telefone: str) -> str:
-    digitos = so_digitos(telefone)
+    digitos = telefone_nacional(telefone)
     if len(digitos) not in (10, 11):
         raise HTTPException(422, "Telefone deve ter DDD + número (10 ou 11 dígitos)")
     return digitos
@@ -209,7 +210,7 @@ def resumo_clientes(db: Client = Depends(get_db)):
 @router.get("/por-telefone/{telefone}", response_model=ClienteOut)
 def buscar_por_telefone(telefone: str, db: Client = Depends(get_db)):
     """Tela inicial do Atendimento. 404 se não existir (front abre cadastro)."""
-    digitos = so_digitos(telefone)
+    digitos = telefone_nacional(telefone)
     rows = (
         db.table("clientes").select(SELECT_CLIENTE).eq("telefone", digitos).limit(1).execute().data
     )
