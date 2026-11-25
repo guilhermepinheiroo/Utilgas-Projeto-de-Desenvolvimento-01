@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.dashboard.router import router as dashboard_router
 from app.entregas.router import entregadores_router, regioes_router
 from app.entregas.router import router as entregas_router
+from app.pagamentos.router import bandeiras_router, maquininhas_router
 from app.produtos.router import estoque_router
 from app.produtos.router import router as produtos_router
 from app.vendas.router import router as vendas_router
@@ -51,6 +52,8 @@ for r in (
     entregas_router,
     entregadores_router,
     regioes_router,
+    maquininhas_router,
+    bandeiras_router,
     dashboard_router,
 ):
     app.include_router(r, dependencies=protegido)
