@@ -20,7 +20,8 @@ Sistema web para uma revenda de gás: atendimento por telefone, vendas, portaria
 6. [Fluxo de trabalho com Git](#6-fluxo-de-trabalho-com-git)
 7. [Estrutura e responsabilidades](#7-estrutura-e-responsabilidades)
 8. [Escopo da entrega (04/11/2026)](#8-escopo-da-entrega-04112026)
-9. [Problemas comuns](#9-problemas-comuns)
+9. [Deploy da API (Render)](#9-deploy-da-api-render)
+10. [Problemas comuns](#10-problemas-comuns)
 
 ---
 
@@ -339,7 +340,40 @@ Tabelas: `perfis`, `regioes`, `clientes`, `enderecos`, `produtos`, `vendas`, `it
 
 ---
 
-## 9. Problemas comuns
+## 9. Deploy da API (Render)
+
+A API roda em Docker (`backend/Dockerfile`). O `render.yaml`, na raiz, descreve o serviço para o [Render](https://render.com) no plano gratuito. O banco continua sendo o projeto Supabase do time.
+
+### Primeira vez
+
+1. A conta do Render que criar o serviço precisa enxergar este repositório pelo GitHub. Como o repositório é do Guilherme, o mais simples é ele criar o serviço (ou instalar o app do Render no repositório). Sem isso, dá para usar a opção "Public Git Repository", mas sem deploy automático a cada push.
+2. No Render: **New → Blueprint**, escolha este repositório e a branch `main`. O Render lê o `render.yaml` e pede três valores:
+
+   | Variável | Valor |
+   |---|---|
+   | `SUPABASE_URL` | URL do projeto (Supabase → Project Settings → API) |
+   | `SUPABASE_SERVICE_KEY` | Chave secret / service_role. **Segredo:** fica só no painel do Render, nunca no Git |
+   | `CORS_ORIGINS` | Endereço do front publicado (vários separados por vírgula). Para usar o front local com a API publicada, inclua `http://localhost:5173` |
+
+3. Quando o build terminar, abra `https://<nome-do-serviço>.onrender.com/health` (deve responder `{"status":"ok"}`) e `/docs`.
+4. No front publicado, `VITE_API_URL` recebe esse endereço.
+
+### No dia a dia
+
+- Cada push na `main` publica a API de novo. Por isso, um PR com migration só entra na `main` depois que a migration foi aplicada no Supabase.
+- No plano gratuito a API "dorme" depois de 15 minutos sem acesso e leva cerca de 1 minuto para acordar: abra o `/health` um pouco antes de apresentar.
+- São 750 horas por mês, o suficiente para um serviço ligado o mês inteiro.
+
+### Rodar a mesma imagem localmente (precisa de Docker)
+
+```bash
+docker build -t utilgas-api backend
+docker run --rm -p 8000:8000 --env-file backend/.env utilgas-api
+```
+
+---
+
+## 10. Problemas comuns
 
 **`bash: .venv/bin/activate: No such file or directory`** (Windows)
 No Windows o caminho é `source .venv/Scripts/activate`.
