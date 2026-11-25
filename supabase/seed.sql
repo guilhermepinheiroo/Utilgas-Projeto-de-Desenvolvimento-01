@@ -36,6 +36,10 @@ select v.nome
 from (values ('João Costa'), ('Lucas Ribeiro')) as v(nome)
 where not exists (select 1 from public.entregadores e where e.nome = v.nome);
 
+insert into public.maquininhas (nome)
+select 'Stone'
+where not exists (select 1 from public.maquininhas m where lower(m.nome) = 'stone');
+
 -- Cliente de exemplo (o mesmo do protótipo), com dois endereços
 insert into public.clientes (nome, telefone, email, observacoes)
 values ('Maria Souza', '53988124477', 'maria.souza@gmail.com', 'Prefere entrega após as 14h.')
