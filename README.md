@@ -187,6 +187,14 @@ pytest tests_sql -v         # dentro de backend/
 
 Sem `TEST_DATABASE_URL` esses testes são ignorados.
 
+Tudo de uma vez (lint e testes unitários, de SQL e de API contra um Supabase **local**), num ambiente com Docker, como o GitHub Codespaces:
+
+```bash
+bash scripts/testar-com-banco.sh
+```
+
+Os testes de API (`backend/tests_api/`) só rodam com `TEST_SUPABASE_URL` e `TEST_SUPABASE_SERVICE_KEY` definidas e se recusam a rodar fora de `localhost`.
+
 ### Como criar ou alterar uma rota
 
 1. Abra o `router.py` do módulo. A docstring de cada rota descreve a regra de negócio.
