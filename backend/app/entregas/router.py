@@ -11,6 +11,7 @@ from app.core.tempo import agora, meia_noite, para_iso_utc
 from app.entregas.schemas import (
     EntregadorCreate,
     EntregadorOut,
+    EntregadorUpdate,
     EntregaItem,
     EntregaOut,
     EntregaUpdate,
@@ -243,14 +244,86 @@ def listar_entregadores(ativo: bool | None = True, db: Client = Depends(get_db))
     return q.order("nome").execute().data
 
 
+@entregadores_router.get("/{entregador_id}", response_model=EntregadorOut)
+def obter_entregador(entregador_id: int, db: Client = Depends(get_db)):
+    return _buscar_entregador(db, entregador_id)
+
+
 @entregadores_router.post("", response_model=EntregadorOut, status_code=201)
 def criar_entregador(dados: EntregadorCreate, db: Client = Depends(get_db)):
-    nome = dados.nome.strip()
+    """Telefone opcional; se vier, precisa de DDD + número e é gravado só com dígitos."""
+    novo = {
+        "nome": _nome_do_entregador(dados.nome),
+        "telefone": _telefone_do_entregador(dados.telefone),
+    }
+    return db.table("entregadores").insert(novo).execute().data[0]
+
+
+@entregadores_router.patch("/{entregador_id}", response_model=EntregadorOut)
+def atualizar_entregador(
+    entregador_id: int, dados: EntregadorUpdate, db: Client = Depends(get_db)
+):
+    """Editar nome e telefone, desativar (ativo=false) ou reativar (ativo=true).
+
+    Desativar não apaga o entregador. Quem ainda tem entrega pendente não pode ser
+    desativado (409): reatribua as entregas antes.
+    """
+    campos = dados.model_dump(exclude_unset=True)
+    if not campos:
+        raise HTTPException(422, "Nenhum campo para atualizar")
+    if "ativo" in campos and campos["ativo"] is None:
+        raise HTTPException(422, "Informe ativo como true ou false")
+    if "nome" in campos:
+        campos["nome"] = _nome_do_entregador(campos["nome"])
+    if "telefone" in campos:
+        campos["telefone"] = _telefone_do_entregador(campos["telefone"])
+
+    atual = _buscar_entregador(db, entregador_id)
+    if campos.get("ativo") is False and atual["ativo"]:
+        _recusar_se_tem_entrega_pendente(db, entregador_id)
+
+    return db.table("entregadores").update(campos).eq("id", entregador_id).execute().data[0]
+
+
+def _buscar_entregador(db: Client, entregador_id: int) -> dict:
+    rows = db.table("entregadores").select("*").eq("id", entregador_id).limit(1).execute().data
+    if not rows:
+        raise HTTPException(404, "Entregador não encontrado")
+    return rows[0]
+
+
+def _nome_do_entregador(nome: str | None) -> str:
+    nome = (nome or "").strip()
     if not nome:
         raise HTTPException(422, "Nome obrigatório")
-    telefone = re.sub(r"\D", "", dados.telefone) if dados.telefone else None
-    novo = {"nome": nome, "telefone": telefone or None}
-    return db.table("entregadores").insert(novo).execute().data[0]
+    return nome
+
+
+def _telefone_do_entregador(telefone: str | None) -> str | None:
+    digitos = re.sub(r"\D", "", telefone or "")
+    if not digitos:
+        return None
+    if len(digitos) not in (10, 11):
+        raise HTTPException(422, "Telefone deve ter DDD + número (10 ou 11 dígitos)")
+    return digitos
+
+
+def _recusar_se_tem_entrega_pendente(db: Client, entregador_id: int) -> None:
+    pendentes = (
+        db.table("entregas")
+        .select("id", count="exact")
+        .eq("entregador_id", entregador_id)
+        .eq("status", "pendente")
+        .limit(1)
+        .execute()
+        .count
+        or 0
+    )
+    if pendentes:
+        raise HTTPException(
+            409,
+            f"Entregador tem {pendentes} entrega(s) pendente(s): reatribua antes de desativar",
+        )
 
 
 # ------------------------------------------------------------------ regiões

@@ -62,6 +62,18 @@ class EntregadorCreate(EntregadorBase):
     pass
 
 
+class EntregadorUpdate(BaseModel):
+    """PATCH parcial: só os campos enviados mudam.
+
+    ativo=false desativa (não apaga: as entregas antigas continuam ligadas a ele).
+    telefone=null apaga o telefone.
+    """
+
+    nome: str | None = None
+    telefone: str | None = None
+    ativo: bool | None = None
+
+
 class EntregadorOut(EntregadorBase):
     id: int
     ativo: bool
