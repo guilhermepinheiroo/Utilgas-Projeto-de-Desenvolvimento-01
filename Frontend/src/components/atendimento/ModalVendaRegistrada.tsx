@@ -1,91 +1,130 @@
+import type { Endereco, ClienteDetalhado } from "../../types/clientes";
 import type { VendaRegistrada } from "../../types/Vendas";
 import { formatarCentavos } from "../../utils/FormatacaoMoeda";
 import { Dialogo } from "../Dialogo";
 
-import iconeConfirmado from "../../assets/icon-confirmar-entrega.png";
-
 interface ModalVendaRegistradaProps {
   venda: VendaRegistrada | null;
+  cliente: ClienteDetalhado;
+  endereco: Endereco | null;
   aoNovoAtendimento: () => void;
   aoVerEntregas: () => void;
 }
 
-const dias = (valor: number | null) => (valor === null ? "—" : `${valor} dias`);
+function resumoFrequencia(venda: VendaRegistrada) {
+  const frequencia = venda.frequencia;
+  if (!frequencia) return null;
 
-export function ModalVendaRegistrada({ venda, aoNovoAtendimento, aoVerEntregas }: ModalVendaRegistradaProps) {
+  const media =
+    frequencia.novaDias === null
+      ? "Ainda não há histórico suficiente para calcular a frequência média."
+      : frequencia.anteriorDias === null
+        ? `Frequência média recalculada: ${frequencia.novaDias} dias entre compras.`
+        : `Frequência média recalculada: ${frequencia.anteriorDias} → ${frequencia.novaDias} dias entre compras.`;
+
+  const recompra =
+    frequencia.recompraPrevistaEmDias === null
+      ? "Ainda não há histórico suficiente para prever a próxima compra."
+      : `Recompra prevista em ${frequencia.recompraPrevistaEmDias} dias${
+          frequencia.dentroDaJanelaDeContato === null
+            ? "."
+            : frequencia.dentroDaJanelaDeContato
+              ? ": dentro da janela de contato."
+              : ": fora da janela de contato, aguarda a próxima venda."
+        }`;
+
+  return { media, recompra };
+}
+
+export function ModalVendaRegistrada({
+  venda,
+  cliente,
+  endereco,
+  aoNovoAtendimento,
+  aoVerEntregas,
+}: ModalVendaRegistradaProps) {
+  const frequencia = venda ? resumoFrequencia(venda) : null;
+  const formaPagamento =
+    venda?.pagamento === "credito" || venda?.pagamento === "debito"
+      ? "Cartão"
+      : venda?.pagamento === "pix"
+        ? "Pix"
+        : venda?.pagamento === "gas_do_povo"
+          ? "Gás do Povo"
+          : "Dinheiro";
+  const enderecoTexto = endereco
+    ? [endereco.endereco, endereco.bairro]
+        .filter(Boolean)
+        .join(" — ")
+    : "Endereço não informado";
+
   return (
-    <Dialogo aberto={venda !== null} titulo="Venda registrada" aoFechar={aoNovoAtendimento}>
+    <Dialogo
+      aberto={venda !== null}
+      titulo="Venda registrada"
+      aoFechar={aoNovoAtendimento}
+      semCabecalho
+      classeLargura="max-w-[655px]"
+      classePainel="rounded-lg bg-white shadow-xl"
+      classeBackdrop="backdrop:bg-black/50"
+    >
       {venda && (
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-4">
-            <img src={iconeConfirmado} alt="" className="size-16 object-contain" />
-            <div>
-              <p className="text-lg font-bold">Pedido #{venda.numero}</p>
-              <p className="text-sm text-neutral-600">
-                Total {formatarCentavos(venda.totalCentavos)}
-                {venda.taxaEntregaCentavos > 0 &&
-                  ` (inclui ${formatarCentavos(venda.taxaEntregaCentavos)} de entrega)`}
-              </p>
-            </div>
-          </div>
+        <div className="flex min-h-[min(530px,80vh)] flex-col p-5 text-neutral-500 sm:p-7">
+          <p className="titulo-secao uppercase tracking-[0.13em] text-[#315d41]">
+            Venda registrada
+          </p>
 
-          {venda.entrega && (
-            <section className="rounded-md border border-neutral-200 p-3 text-sm">
-              <h3 className="mb-1 text-xs font-bold uppercase tracking-wide text-neutral-500">Entrega</h3>
-              <p>
-                Pendente
-                {venda.entrega.regiao && ` · ${venda.entrega.regiao}`}
-              </p>
-            </section>
-          )}
+          <h2 className="titulo-pedido mt-5 leading-tight text-neutral-800">
+            Pedido #{venda.numero} · {formatarCentavos(venda.totalCentavos)}
+          </h2>
+          <p className="informacao-secundaria mt-3 text-neutral-500">
+            {venda.cliente?.nome ?? cliente.nome} · {formaPagamento} · {enderecoTexto}
+          </p>
 
-          {venda.frequencia && (
-            <section className="rounded-md border border-neutral-200 p-3 text-sm">
-              <h3 className="mb-1 text-xs font-bold uppercase tracking-wide text-neutral-500">
+          <div className="mt-3 border-t border-neutral-300" />
+
+          {frequencia && (
+            <section className="py-4">
+              <h3 className="text-sm font-bold uppercase tracking-[0.13em] text-[#315d41]">
                 Recálculo de frequência
               </h3>
-              <dl className="grid grid-cols-2 gap-2 text-xs">
-                <div>
-                  <dt className="text-neutral-500">Antes</dt>
-                  <dd className="font-semibold">{dias(venda.frequencia.anteriorDias)}</dd>
-                </div>
-                <div>
-                  <dt className="text-neutral-500">Agora</dt>
-                  <dd className="font-semibold">{dias(venda.frequencia.novaDias)}</dd>
-                </div>
-                <div className="col-span-2">
-                  <dt className="text-neutral-500">Próxima compra prevista</dt>
-                  <dd className="font-semibold">
-                    {venda.frequencia.recompraPrevistaEmDias !== null
-                      ? `em ${venda.frequencia.recompraPrevistaEmDias} dias`
-                      : "—"}
-                  </dd>
-                </div>
-              </dl>
-              {venda.frequencia.dentroDaJanelaDeContato !== null && (
-                <p className="mt-2 text-xs text-neutral-600">
-                  {venda.frequencia.dentroDaJanelaDeContato
-                    ? "Comprou dentro do prazo esperado."
-                    : "Comprou fora do prazo esperado."}
-                </p>
-              )}
+              <p className="informacao-secundaria mt-2 leading-5 text-neutral-500">
+                {frequencia.media}
+              </p>
+              <p className="informacao-secundaria mt-2 leading-5 text-neutral-500">
+                {frequencia.recompra}
+              </p>
             </section>
           )}
 
-          <div className="flex justify-end gap-2">
+          <div className="border-t border-neutral-300" />
+
+          {venda.entrega && (
+            <section className="py-4">
+              <h3 className="text-sm font-bold uppercase tracking-[0.13em] text-[#315d41]">
+                Entrega
+              </h3>
+              <p className="informacao-secundaria mt-2 leading-5 text-neutral-500">
+                Entrega #{venda.entrega.id} criada com status {venda.entrega.status}
+                {venda.entrega.regiao ? `, região ${venda.entrega.regiao}` : ""}
+                {venda.entrega.entregadorId
+                  ? ", entregador atribuído."
+                  : ", aguardando atribuição de entregador."}
+              </p>
+            </section>
+          )}
+
+          <footer className="mt-auto flex justify-end pt-5">
             {venda.entrega && (
-              <button type="button" onClick={aoVerEntregas} className="rounded-md border px-4 py-2 text-sm">
-                Ver entregas
+              <button
+                type="button"
+                onClick={aoVerEntregas}
+                className="bg-[#4b7957] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-sidebar"
+              >
+                Ir para Entregas
               </button>
             )}
-            <button
-              type="button"
-              onClick={aoNovoAtendimento}
-              className="rounded-md bg-sidebar px-4 py-2 text-sm font-semibold text-white"
-            >
-              Novo atendimento
-            </button>
-          </div>
+          </footer>
         </div>
       )}
     </Dialogo>

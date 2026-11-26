@@ -197,6 +197,178 @@ def test_atribuir_e_entregar(client):
     assert r.json()["itens"][0]["quantidade"] == 1
 
 
+def test_atualizar_entregador_normaliza_nome_e_telefone(client):
+    atual = {
+        "id": 4,
+        "nome": "João",
+        "telefone": "53988124477",
+        "cpf": "52998224725",
+        "tipo_veiculo": "Moto",
+        "placa": "ABC1D23",
+        "pix_observacoes": None,
+        "ativo": True,
+    }
+    usar_db(FakeDB([atual], []))
+
+    r = client.patch(
+        "/entregadores/4",
+        json={"nome": "  João Silva  ", "telefone": "(53) 98812-4477"},
+    )
+
+    assert r.status_code == 200
+    assert r.json() == {
+        "id": 4,
+        "nome": "João Silva",
+        "telefone": "53988124477",
+        "cpf": "52998224725",
+        "tipo_veiculo": "Moto",
+        "placa": "ABC1D23",
+        "pix_observacoes": None,
+        "ativo": True,
+    }
+
+
+def test_criar_entregador(client):
+    novo = {
+        "id": 5,
+        "nome": "Ana Souza",
+        "telefone": "53988887777",
+        "cpf": "52998224725",
+        "tipo_veiculo": "Carro",
+        "placa": "sem-validar",
+        "pix_observacoes": None,
+        "ativo": True,
+    }
+    usar_db(FakeDB([novo]))
+
+    r = client.post(
+        "/entregadores",
+        json={
+            "nome": "Ana Souza",
+            "telefone": "53988887777",
+            "cpf": "529.982.247-25",
+            "tipo_veiculo": "Carro",
+            "placa": "sem-validar",
+        },
+    )
+
+    assert r.status_code == 201
+    assert r.json() == {**novo, "placa": "sem-validar"}
+
+
+def test_criar_entregador_aceita_cpf_sem_validar_digitos_verificadores(client):
+    novo = {
+        "id": 6,
+        "nome": "Ana Souza",
+        "telefone": "53988887777",
+        "cpf": "12345678907",
+        "tipo_veiculo": "Carro",
+        "placa": "X",
+        "pix_observacoes": None,
+        "ativo": True,
+    }
+    usar_db(FakeDB([novo]))
+
+    r = client.post(
+        "/entregadores",
+        json={
+            "nome": "Ana Souza",
+            "telefone": "53988887777",
+            "cpf": "123.456.789-07",
+            "tipo_veiculo": "Carro",
+            "placa": "X",
+        },
+    )
+
+    assert r.status_code == 201
+    assert r.json() == novo
+
+
+def test_editar_entregador_aceita_cpf_e_placa_fora_do_formato(client):
+    atual = {
+        "id": 4,
+        "nome": "João",
+        "telefone": "53988124477",
+        "cpf": "52998224725",
+        "tipo_veiculo": "Moto",
+        "placa": "ABC1D23",
+        "pix_observacoes": None,
+        "ativo": True,
+    }
+    usar_db(FakeDB([atual], []))
+
+    r = client.patch(
+        "/entregadores/4",
+        json={"cpf": "12345678907", "placa": "X"},
+    )
+
+    assert r.status_code == 200
+    assert r.json()["cpf"] == "12345678907"
+    assert r.json()["placa"] == "X"
+
+
+def test_desativar_entregador_preserva_registro(client):
+    atual = {"id": 4, "nome": "João", "telefone": None, "ativo": True}
+    usar_db(FakeDB([atual], []))
+
+    r = client.patch("/entregadores/4", json={"ativo": False})
+
+    assert r.status_code == 200
+    assert r.json()["ativo"] is False
+
+
+def test_atualizar_entregador_inexistente_da_404(client):
+    usar_db(FakeDB([]))
+
+    assert client.patch("/entregadores/404", json={"ativo": False}).status_code == 404
+
+
+def test_atualizar_entregador_rejeita_nome_vazio(client):
+    usar_db(
+        FakeDB(
+            [
+                {
+                    "id": 4,
+                    "nome": "João",
+                    "telefone": "53988124477",
+                    "cpf": "52998224725",
+                    "tipo_veiculo": "Moto",
+                    "placa": "ABC1D23",
+                    "pix_observacoes": None,
+                    "ativo": True,
+                }
+            ]
+        )
+    )
+
+    r = client.patch("/entregadores/4", json={"nome": "  "})
+
+    assert r.status_code == 422
+
+
+def test_excluir_entregador_sem_entregas_vinculadas(client):
+    usar_db(FakeDB([{"id": 4}], [], []))
+
+    r = client.delete("/entregadores/4")
+
+    assert r.status_code == 204
+
+
+def test_excluir_entregador_com_entregas_vinculadas_e_bloqueado(client):
+    usar_db(FakeDB([{"id": 4}], [{"id": 10}]))
+
+    r = client.delete("/entregadores/4")
+
+    assert r.status_code == 409
+    assert "histórico foi preservado" in r.json()["detail"]
+
+
+def test_excluir_entregador_inexistente_da_404(client):
+    usar_db(FakeDB([]))
+
+    assert client.delete("/entregadores/404").status_code == 404
+
+
 def test_update_perdeu_corrida_da_409(client):
     usar_db(FakeDB([entrega_row()], [{"id": 1, "ativo": True}], []))  # update sem linhas
     r = client.patch("/entregas/1", json={"entregador_id": 1})

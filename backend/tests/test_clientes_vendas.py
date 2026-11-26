@@ -7,6 +7,8 @@ from fastapi.testclient import TestClient
 
 from app.core.auth import get_current_user, get_db
 from app.main import app
+from app.clientes.router import _dados_endereco
+from app.clientes.schemas import EnderecoCreate
 
 
 class FakeQuery:
@@ -122,6 +124,15 @@ def venda_row(status="concluida", **extra):
 # ------------------------------------------------------------------ clientes
 
 
+def test_endereco_salva_ponto_de_referencia():
+    endereco = EnderecoCreate(
+        endereco="Rua das Flores, 10",
+        ponto_referencia="  portão azul  ",
+    )
+
+    assert _dados_endereco(endereco)["ponto_referencia"] == "portão azul"
+
+
 def test_criar_cliente_telefone_invalido(client):
     usar_db(FakeDB())
     r = client.post("/clientes", json={"nome": "Ana", "telefone": "123"})
@@ -222,7 +233,8 @@ def test_excluir_cliente_sem_vendas(client):
 # -------------------------------------------------------------------- vendas
 
 
-def test_registrar_venda_chama_funcao_sql(client):
+@pytest.mark.parametrize("forma_pagamento", ["pix", "gas_do_povo"])
+def test_registrar_venda_chama_funcao_sql(client, forma_pagamento):
     db = usar_db(
         FakeDB(
             [
@@ -246,7 +258,7 @@ def test_registrar_venda_chama_funcao_sql(client):
         "origem": "atendimento",
         "cliente_id": 1,
         "endereco_id": 3,
-        "forma_pagamento": "pix",
+        "forma_pagamento": forma_pagamento,
         "itens": [{"produto_id": 1, "quantidade": 1}],
     }
     r = client.post("/vendas", json=corpo)
@@ -254,6 +266,7 @@ def test_registrar_venda_chama_funcao_sql(client):
     nome, params = db.rpcs[0]
     assert nome == "registrar_venda"
     assert params["p_usuario_id"] == USUARIO["id"]
+    assert params["p_dados"]["forma_pagamento"] == forma_pagamento
     assert params["p_dados"]["itens"][0]["produto_id"] == 1
     resp = r.json()
     assert resp["total"] == 123.0

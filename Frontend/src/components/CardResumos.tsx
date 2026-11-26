@@ -10,8 +10,8 @@ const coresValor: Record<CorValor, string> = {
 };
 
 const estilosTitulo: Record<EstiloTitulo, string> = {
-  destaque: "text-xs text-verde-painel",
-  discreto: "text-[11px] font-medium uppercase tracking-wide text-neutral-500",
+  destaque: "titulo-indicador text-verde-painel",
+  discreto: "titulo-indicador uppercase tracking-wide text-neutral-500",
 };
 
 interface CardResumoProps {
@@ -31,8 +31,8 @@ export function CardResumo({
 }: CardResumoProps) {
   return (
     <article className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
-      <h2 className={estilosTitulo[estiloTitulo]}>{titulo}</h2>
-      <p className={`mt-2 text-2xl font-bold ${coresValor[corValor]}`}>{valor}</p>
+      <p className={estilosTitulo[estiloTitulo]}>{titulo}</p>
+      <p className={`indicador-valor mt-2 ${coresValor[corValor]}`}>{valor}</p>
       {rodape && <div className="mt-1">{rodape}</div>}
     </article>
   );

@@ -362,7 +362,7 @@ export function ModalAcoesEntrega({
     <Dialogo
       aberto={entrega !== null}
       titulo={titulosPorEtapa[etapa]}
-      tituloVisivel={tituloVisivel}
+      ocultarTitulo={!tituloVisivel}
       aoFechar={aoFechar}
     >
       {entrega && etapa === "acoes" && (

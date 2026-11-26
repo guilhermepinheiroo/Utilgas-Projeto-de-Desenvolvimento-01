@@ -11,6 +11,11 @@ import type { CategoriaProduto, Produto } from "../types/Produtos";
 import type { FormaPagamento } from "../types/Vendas";
 import { formatarCentavos } from "../utils/FormatacaoMoeda";
 import { normalizar } from "../utils/Texto";
+import {
+  descontoEfetivoDoItem,
+  ehBotijaoP13,
+  subtotalCobradoDoItem,
+} from "../utils/CalculoVenda";
 
 import iconeBusca from "../assets/telaclientes/icon-busca.png";
 import iconeCartao from "../assets/icon-cartao.png";
@@ -30,10 +35,8 @@ const formasPagamento: Array<{ id: FormaPagamento; nome: string; icone: string }
   { id: "dinheiro", nome: "Dinheiro", icone: iconeDinheiro },
   { id: "credito", nome: "Cartão de Crédito", icone: iconeCartao },
   { id: "debito", nome: "Cartão de Débito", icone: iconeCartao },
+  { id: "gas_do_povo", nome: "Gás do Povo", icone: iconeDaCategoria("gas") },
 ];
-
-const totalDoItem = (item: ItemCarrinho) =>
-  item.produto.precoCentavos * item.quantidade - item.descontoCentavos;
 
 function ProdutoIcone({ categoria }: { categoria: CategoriaProduto }) {
   return (
@@ -48,11 +51,13 @@ function CampoDesconto({
   maximoCentavos,
   aoAlterar,
   rotulo,
+  desabilitado = false,
 }: {
   valorCentavos: number;
   maximoCentavos: number;
   aoAlterar: (centavos: number) => void;
   rotulo: string;
+  desabilitado?: boolean;
 }) {
   const [texto, setTexto] = useState(valorCentavos ? String(valorCentavos / 100) : "");
 
@@ -62,6 +67,7 @@ function CampoDesconto({
       min="0"
       step="0.01"
       inputMode="decimal"
+      disabled={desabilitado}
       value={texto}
       aria-label={rotulo}
       placeholder="0,00"
@@ -70,7 +76,7 @@ function CampoDesconto({
         const centavos = Math.round(Number(e.target.value.replace(",", ".")) * 100) || 0;
         aoAlterar(Math.min(Math.max(0, centavos), maximoCentavos));
       }}
-      className="w-20 rounded border border-neutral-300 px-1.5 py-1 text-xs text-[#16a765]"
+      className="w-20 rounded border border-neutral-300 px-1.5 py-1 text-xs text-[#16a765] disabled:bg-neutral-100 disabled:text-neutral-400"
     />
   );
 }
@@ -97,8 +103,12 @@ export function Portaria() {
   }, [produtos, busca, filtro]);
 
   const subtotal = carrinho.reduce((t, item) => t + item.produto.precoCentavos * item.quantidade, 0);
-  const desconto = carrinho.reduce((t, item) => t + item.descontoCentavos, 0);
+  const desconto = carrinho.reduce(
+    (t, item) => t + descontoEfetivoDoItem(item, pagamento),
+    0
+  );
   const total = subtotal - desconto;
+  const temBotijaoP13 = carrinho.some((item) => ehBotijaoP13(item.produto));
 
   function adicionarProduto(produto: Produto) {
     setMensagem(null);
@@ -116,8 +126,8 @@ export function Portaria() {
   }
 
   function alterarQuantidade(id: string, delta: number) {
-    setCarrinho((itens) =>
-      itens
+    atualizarCarrinho(
+      carrinho
         .map((item) => {
           if (item.produto.id !== id) return item;
           const quantidade = Math.min(Math.max(0, item.quantidade + delta), item.produto.quantidade);
@@ -140,9 +150,20 @@ export function Portaria() {
     setPagamento("pix");
   }
 
+  function atualizarCarrinho(novosItens: ItemCarrinho[]) {
+    setCarrinho(novosItens);
+    if (!novosItens.some((item) => ehBotijaoP13(item.produto)) && pagamento === "gas_do_povo") {
+      setPagamento("pix");
+    }
+  }
+
   async function finalizarVenda() {
     if (carrinho.length === 0) {
       setMensagem("Adicione pelo menos um produto ao carrinho.");
+      return;
+    }
+    if (pagamento === "gas_do_povo" && !temBotijaoP13) {
+      setMensagem("Adicione um botijão P13 para usar o pagamento Gás do Povo.");
       return;
     }
 
@@ -157,7 +178,7 @@ export function Portaria() {
         itens: carrinho.map((item) => ({
           produtoId: item.produto.id,
           quantidade: item.quantidade,
-          descontoCentavos: item.descontoCentavos,
+          descontoCentavos: descontoEfetivoDoItem(item, pagamento),
         })),
       });
       numero = registrada.numero;
@@ -338,12 +359,17 @@ export function Portaria() {
                         maximoCentavos={item.produto.precoCentavos * item.quantidade}
                         aoAlterar={(centavos) => alterarDesconto(item.produto.id, centavos)}
                         rotulo={`Desconto em ${item.produto.nome}`}
+                        desabilitado={
+                          pagamento === "gas_do_povo" && ehBotijaoP13(item.produto)
+                        }
                       />
-                      <span className="text-xs font-medium">{formatarCentavos(totalDoItem(item))}</span>
+                      <span className="text-xs font-medium">
+                        {formatarCentavos(subtotalCobradoDoItem(item, pagamento))}
+                      </span>
                       <button
                         type="button"
                         onClick={() =>
-                          setCarrinho((itens) => itens.filter((i) => i.produto.id !== item.produto.id))
+                          atualizarCarrinho(carrinho.filter((i) => i.produto.id !== item.produto.id))
                         }
                         className="justify-self-end rounded bg-red-50 p-1.5 text-red-500 hover:bg-red-100"
                         aria-label={`Remover ${item.produto.nome}`}
@@ -361,7 +387,11 @@ export function Portaria() {
         <aside className="rounded-md border border-neutral-300 bg-white p-4 sm:p-5">
           <h2 className="border-b border-neutral-300 pb-3 text-xs font-bold">Resumo da Venda</h2>
           <div className="flex items-center justify-between gap-3 border-b border-neutral-300 py-3">
-            <div className="flex min-w-0 items-center gap-2 rounded-md bg-[#a40000] px-3 py-2 text-white">
+            <div
+              className={`flex min-w-0 items-center gap-2 rounded-md px-3 py-2 text-white ${
+                cliente ? "bg-[#2e7d4f]" : "bg-[#a40000]"
+              }`}
+            >
               <img src={iconePerfil} alt="" className="size-5 shrink-0 brightness-0 invert" />
               <div className="min-w-0 leading-tight">
                 <p className="truncate text-[10px] font-semibold">{cliente?.nome ?? "Cliente Indefinido"}</p>
@@ -409,26 +439,44 @@ export function Portaria() {
           <fieldset className="mt-4">
             <legend className="mb-2 text-xs font-bold">Forma de pagamento</legend>
             <div className="grid grid-cols-2 gap-2">
-              {formasPagamento.map((forma) => (
-                <label
-                  key={forma.id}
-                  className={`relative flex min-h-14 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border p-2 text-center text-[10px] transition-colors ${
-                    pagamento === forma.id ? "border-sidebar bg-[#f5faf7]" : "border-neutral-300"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="forma-pagamento"
-                    value={forma.id}
-                    checked={pagamento === forma.id}
-                    onChange={() => setPagamento(forma.id)}
-                    className="absolute right-2 top-2 accent-sidebar"
-                  />
-                  <img src={forma.icone} alt="" className="size-4 object-contain" />
-                  <span>{forma.nome}</span>
-                </label>
-              ))}
+              {formasPagamento.map((forma) => {
+                const desabilitada = forma.id === "gas_do_povo" && !temBotijaoP13;
+                return (
+                  <label
+                    key={forma.id}
+                    className={`relative flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg border p-2 text-center text-[10px] transition-colors ${
+                      pagamento === forma.id ? "border-sidebar bg-[#f5faf7]" : "border-neutral-300"
+                    } ${desabilitada ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+                  >
+                    <input
+                      type="radio"
+                      name="forma-pagamento"
+                      value={forma.id}
+                      checked={pagamento === forma.id}
+                      disabled={desabilitada}
+                      onChange={() => setPagamento(forma.id)}
+                      className="absolute right-2 top-2 accent-sidebar"
+                    />
+                    <img src={forma.icone} alt="" className="size-4 object-contain" />
+                    <span>{forma.nome}</span>
+                  </label>
+                );
+              })}
             </div>
+            {!temBotijaoP13 && (
+              <p className="mt-2 text-[10px] text-neutral-500">
+                Adicione um botijão P13 para habilitar o Gás do Povo.
+              </p>
+            )}
+            {pagamento === "gas_do_povo" && (
+              <p
+                role="status"
+                className="mt-2 rounded-md bg-[#dce7df] px-3 py-2 text-[10px] text-sidebar"
+              >
+                Botijões P13 ficam zerados; outros botijões, água e acessórios continuam cobrados.
+                A venda na portaria não tem taxa de entrega.
+              </p>
+            )}
           </fieldset>
 
           <div className="mt-5 grid gap-2">

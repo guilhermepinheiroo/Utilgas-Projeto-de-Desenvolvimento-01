@@ -101,27 +101,26 @@ Pode rodar mais de uma vez: ele não duplica o que já existe. **Nunca em produ�
 
 ### 3.4 Criar seu usuário de login
 
-Cada usuário precisa de login no Supabase Auth e de uma linha em `perfis`. O script abaixo faz os dois (precisa do `backend/.env` do passo 4):
+Depois de aplicar a migration `criar_perfil_automatico` com `npx supabase db push`, criar um usuário em **Authentication → Users → Add user** também cria seu perfil automaticamente. O nome vem dos metadados `nome`, `full_name` ou `name` ou, se não houver, da parte do e-mail antes do `@`. O perfil começa ativo como `operador`; privilégios de `admin` devem ser concedidos explicitamente.
+
+Para criar um usuário pelo terminal (ou provisionar o perfil de alguém criado antes da migration), use o script abaixo. Ele precisa do `backend/.env` do passo 4:
 
 ```bash
 cd backend
 source .venv/Scripts/activate
-python -m scripts.criar_usuario --email voce@exemplo.com --nome "Seu Nome" --papel admin
+python -m scripts.criar_usuario --email voce@exemplo.com --nome "Seu Nome" --papel operador
 ```
 
-A senha é pedida no terminal. Para quem só atende, use `--papel operador`.
+A senha é pedida no terminal quando o usuário ainda não existe. Use `--papel admin` somente para conceder acesso administrativo.
 
-Ou pelo painel:
-
-1. **Authentication → Users → Add user**, com e-mail e senha (marque *Auto Confirm User*).
-2. Copie o **UID** do usuário e rode no **SQL Editor**:
+Usuários criados antes da migration não recebem o perfil retroativamente. Para provisionar um deles, rode o script acima com o e-mail existente. Alternativamente, um administrador pode criar o perfil no SQL Editor usando o UID de **Authentication → Users**:
 
 ```sql
 insert into public.perfis (id, nome, papel)
-values ('COLE_O_UID_AQUI', 'Seu Nome', 'admin');
+values ('COLE_O_UID_AQUI', 'Seu Nome', 'operador');
 ```
 
-Sem a linha em `perfis` o login não entra ("Usuário sem perfil ativo").
+O trigger de criação é definido em `supabase/migrations/20261124231321_criar_perfil_automatico.sql`.
 
 ---
 

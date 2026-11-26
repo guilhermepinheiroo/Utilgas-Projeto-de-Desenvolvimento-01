@@ -1,4 +1,11 @@
-export type FormaPagamento = "pix" | "dinheiro" | "debito" | "credito";
+export type FormaPagamento = "pix" | "dinheiro" | "debito" | "credito" | "gas_do_povo";
+export type BandeiraCartao =
+  | "Mastercard"
+  | "Visa"
+  | "Elo"
+  | "Hipercard"
+  | "Amex"
+  | "Banrisul";
 export type StatusVenda = "pago" | "pendente" | "cancelado";
 export type OrigemVenda = "portaria" | "entrega";
 export type PeriodoVendas = "hoje" | "ontem" | "7dias" | "30dias" | "mes";

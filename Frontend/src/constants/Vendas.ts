@@ -20,6 +20,7 @@ export const rotulosPagamento: Record<FormaPagamento, string> = {
   dinheiro: "Dinheiro",
   debito: "Débito",
   credito: "Crédito",
+  gas_do_povo: "Gás do Povo",
 };
 
 // Débito e crédito ainda não têm ícone
@@ -59,6 +60,7 @@ export const opcoesPagamento: OpcaoSeletor<FiltroPagamento>[] = [
   { valor: "dinheiro", rotulo: "Dinheiro" },
   { valor: "debito", rotulo: "Cartão de débito" },
   { valor: "credito", rotulo: "Cartão de crédito" },
+  { valor: "gas_do_povo", rotulo: "Gás do Povo" },
 ];
 
 export const opcoesStatusVenda: OpcaoSeletor<FiltroStatusVenda>[] = [

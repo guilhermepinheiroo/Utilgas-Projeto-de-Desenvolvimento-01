@@ -1,33 +1,54 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { CampoTelefone } from "../components/BuscaTelefone";
+import { Dialogo } from "../components/Dialogo";
 import { CartaoCliente } from "../components/atendimento/CartaoCliente";
 import { EtapaEndereco } from "../components/atendimento/EtapaEndereco";
 import { EtapaItens } from "../components/atendimento/EtapaItens";
 import { EtapaPagamento } from "../components/atendimento/EtapaPagamento";
 import { Etapas } from "../components/atendimento/Etapas";
 import { ModalVendaRegistrada } from "../components/atendimento/ModalVendaRegistrada";
-import { nomesEtapas, type ItemPedido } from "../components/atendimento/tipos";
-import { CamposCliente, CamposEndereco } from "../components/clientes/FormCliente";
-import { useAcao } from "../hooks/UsenAcao";
-import { buscarClientePorTelefone, criarCliente, obterCliente } from "../services/Clientes";
-import { registrarVenda } from "../services/Vendas";
-import type { ClienteDetalhado, ClienteInput, EnderecoInput } from "../types/clientes";
-import type { FormaPagamento, VendaRegistrada } from "../types/Vendas";
-import { telefoneCompleto } from "../utils/FormatacaoTelefone";
 import {
-  clienteValido,
-  clienteVazio,
-  enderecoValido,
-  enderecoVazio,
-} from "../utils/ValidaCliente";
+  nomesEtapas,
+  type ItemPedido,
+} from "../components/atendimento/tipos";
+import { ModalCliente } from "../components/ModalClientes";
+import { useAcao } from "../hooks/UsenAcao";
+import { useConsulta } from "../hooks/UseConsulta";
+import { buscarClientePorTelefone, buscarRegioes } from "../services/Clientes";
+import { registrarVenda } from "../services/Vendas";
+import type { ClienteDetalhado } from "../types/clientes";
+import type { DadosFormularioCliente, OpcaoRegiao } from "../types/FormularioCliente";
+import type { BandeiraCartao, FormaPagamento, VendaRegistrada } from "../types/Vendas";
+import { formatarCentavos } from "../utils/FormatacaoMoeda";
+import {
+  descontoEfetivoDoItem,
+  ehBotijaoP13,
+  subtotalCobradoDoItem,
+} from "../utils/CalculoVenda";
+import { formatarTelefone, telefoneCompleto } from "../utils/FormatacaoTelefone";
+import {
+  clienteParaFormulario,
+  formularioVazio,
+  resumoDoCliente,
+  salvarCliente,
+} from "../utils/MapeadoresClientes";
+import { validarFormularioCliente } from "../utils/ValidarFormularioCliente";
 
-type Tela = "telefone" | "cadastro" | "venda";
+type Tela = "telefone" | "venda";
+type ModalAberto = "localizado" | "novo" | null;
 
 const classeBotaoPrimario =
-  "rounded-md bg-sidebar px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sidebar-ativo disabled:cursor-not-allowed disabled:opacity-50";
+  "rounded-none bg-sidebar px-3 py-1 text-[11px] font-semibold text-white transition-colors hover:bg-sidebar-ativo disabled:cursor-not-allowed disabled:opacity-50";
 const classeBotaoSecundario =
-  "rounded-md border border-neutral-300 px-5 py-2.5 text-sm font-medium hover:bg-neutral-50 disabled:opacity-50";
+  "rounded-none border border-neutral-300 px-3 py-1 text-[11px] font-medium hover:bg-neutral-50 disabled:opacity-50";
+const rotulosPagamento: Record<FormaPagamento, string> = {
+  pix: "PIX",
+  dinheiro: "Dinheiro",
+  debito: "Cartão de Débito",
+  credito: "Cartão de Crédito",
+  gas_do_povo: "Gás do Povo",
+};
 
 function Alerta({ texto }: { texto: string | null }) {
   if (!texto) return null;
@@ -44,23 +65,44 @@ export function Atendimento() {
   const [telefone, setTelefone] = useState("");
   const [cliente, setCliente] = useState<ClienteDetalhado | null>(null);
 
-  const [novoCliente, setNovoCliente] = useState<ClienteInput>(clienteVazio);
-  const [novoEndereco, setNovoEndereco] = useState<EnderecoInput>(enderecoVazio);
+  const [modal, setModal] = useState<ModalAberto>(null);
+  const [dados, setDados] = useState<DadosFormularioCliente>(() => formularioVazio(""));
   const [aviso, setAviso] = useState<string | null>(null);
 
   const [etapa, setEtapa] = useState(0);
   const [enderecoId, setEnderecoId] = useState<string | null>(null);
   const [itens, setItens] = useState<ItemPedido[]>([]);
   const [pagamento, setPagamento] = useState<FormaPagamento>("pix");
+  const [bandeira, setBandeira] = useState<BandeiraCartao | null>(null);
   const [observacao, setObservacao] = useState("");
   const [vendaRegistrada, setVendaRegistrada] = useState<VendaRegistrada | null>(null);
 
   const busca = useAcao();
-  const cadastro = useAcao();
+  const salvamento = useAcao();
   const venda = useAcao();
+  const consultaRegioes = useConsulta(buscarRegioes, "atendimento-regioes");
+  const regiaoPadrao =
+    consultaRegioes.dados?.find((regiao) => regiao.nome.toLocaleLowerCase("pt-BR") === "centro")
+      ?.id ?? consultaRegioes.dados?.[0]?.id;
+  const regioes: OpcaoRegiao[] = (consultaRegioes.dados ?? []).map((regiao) => ({
+    valor: regiao.id,
+    rotulo: regiao.nome,
+  }));
 
   const endereco = cliente?.enderecos.find((e) => e.id === enderecoId) ?? null;
-  const liberadas = [true, cliente !== null, endereco !== null, endereco !== null && itens.length > 0];
+  const pagamentoCartao = pagamento === "credito" || pagamento === "debito";
+  const instrucaoMaquininha =
+    pagamentoCartao && bandeira ? `Levar máquina para cartão ${bandeira}` : null;
+  const observacaoEntrega = [observacao.trim(), instrucaoMaquininha]
+    .filter((texto): texto is string => texto !== null && texto.length > 0)
+    .join(" · ");
+  const liberadas = [
+    true,
+    cliente !== null,
+    cliente !== null && itens.length > 0,
+    cliente !== null && endereco !== null && itens.length > 0,
+  ];
+  const temBotijaoP13 = itens.some((item) => ehBotijaoP13(item.produto));
 
   function iniciarVenda(c: ClienteDetalhado) {
     setCliente(c);
@@ -68,8 +110,10 @@ export function Atendimento() {
     setEnderecoId(principal?.id ?? null);
     setItens([]);
     setPagamento("pix");
+    setBandeira(null);
     setObservacao("");
-    setEtapa(0);
+    setEtapa(1);
+    setModal(null);
     setTela("venda");
   }
 
@@ -77,12 +121,49 @@ export function Atendimento() {
     setTela("telefone");
     setTelefone("");
     setCliente(null);
-    setNovoCliente(clienteVazio);
-    setNovoEndereco(enderecoVazio);
+    setModal(null);
+    setDados(formularioVazio(""));
     setVendaRegistrada(null);
     setAviso(null);
     busca.limparErro();
+    salvamento.limparErro();
     venda.limparErro();
+  }
+
+  function alterarItens(novosItens: ItemPedido[]) {
+    setItens(novosItens);
+    if (!novosItens.some((item) => ehBotijaoP13(item.produto)) && pagamento === "gas_do_povo") {
+      setPagamento("pix");
+    }
+  }
+
+  function abrirLocalizado(c: ClienteDetalhado) {
+    setCliente(c);
+    setDados(clienteParaFormulario(c));
+    setAviso(null);
+    salvamento.limparErro();
+    setModal("localizado");
+  }
+
+  function abrirNovo() {
+    setCliente(null);
+    const formulario = formularioVazio(telefone.replace(/\D/g, ""));
+    if (regiaoPadrao && formulario.enderecos[0]) {
+      formulario.enderecos[0].regiao = regiaoPadrao;
+    }
+    setDados(formulario);
+    setAviso(null);
+    salvamento.limparErro();
+    setModal("novo");
+  }
+
+  // Voltar do modal: fecha e descarta as alterações, mantendo o telefone digitado
+  function voltarDoModal() {
+    if (modal === null) return;
+    setModal(null);
+    setCliente(null);
+    setAviso(null);
+    salvamento.limparErro();
   }
 
   async function iniciarAtendimento(evento: FormEvent<HTMLFormElement>) {
@@ -95,34 +176,44 @@ export function Atendimento() {
     });
     if (!ok) return;
 
-    if (encontrado) {
-      iniciarVenda(encontrado);
-    } else {
-      setNovoCliente({ ...clienteVazio, whatsapp: telefone.replace(/\D/g, "") });
-      setNovoEndereco(enderecoVazio);
-      setAviso(null);
-      setTela("cadastro");
-    }
+    if (encontrado) abrirLocalizado(encontrado);
+    else abrirNovo();
   }
 
-  async function cadastrar(evento: FormEvent<HTMLFormElement>) {
-    evento.preventDefault();
-    const problema = clienteValido(novoCliente) ?? enderecoValido(novoEndereco);
+  // Cadastro abre a revisão dos dados; cliente salvo pode seguir para a venda.
+  async function confirmarCliente() {
+    const problema = validarFormularioCliente(dados);
     if (problema) {
       setAviso(problema);
       return;
     }
     setAviso(null);
+    const clienteJaCadastrado = cliente !== null;
 
-    let criado: ClienteDetalhado | null = null;
-    const ok = await cadastro.executar(async () => {
-      criado = await criarCliente(novoCliente, novoEndereco);
+    let salvo: ClienteDetalhado | null = null;
+    const ok = await salvamento.executar(async () => {
+      salvo = await salvarCliente(dados, cliente);
     });
-    if (ok && criado) iniciarVenda(criado);
+    if (!ok || !salvo) return;
+
+    if (clienteJaCadastrado) {
+      iniciarVenda(salvo);
+      return;
+    }
+
+    setCliente(salvo);
+    setDados(clienteParaFormulario(salvo));
+    setModal("localizado");
   }
 
   async function finalizar() {
-    if (!cliente || !endereco || itens.length === 0) return;
+    if (
+      !cliente ||
+      !endereco ||
+      itens.length === 0 ||
+      (pagamentoCartao && !bandeira) ||
+      (pagamento === "gas_do_povo" && !temBotijaoP13)
+    ) return;
 
     let registrada: VendaRegistrada | null = null;
     const ok = await venda.executar(async () => {
@@ -131,11 +222,11 @@ export function Atendimento() {
         clienteId: cliente.id,
         enderecoId: endereco.id,
         pagamento,
-        observacaoEntregador: observacao,
+        observacaoEntregador: observacaoEntrega,
         itens: itens.map((item) => ({
           produtoId: item.produto.id,
           quantidade: item.quantidade,
-          descontoCentavos: item.descontoCentavos,
+          descontoCentavos: descontoEfetivoDoItem(item, pagamento),
         })),
       });
     });
@@ -143,142 +234,262 @@ export function Atendimento() {
   }
 
   if (tela === "telefone") {
+    const novo = modal === "novo";
+    const resumo = !novo && cliente ? resumoDoCliente(cliente) : null;
+
     return (
-      <form
-        onSubmit={iniciarAtendimento}
-        className="flex h-full min-h-screen flex-col items-center justify-center gap-6 px-6"
-      >
-        <h1 className="text-xl font-bold text-neutral-900">Atendimento por telefone</h1>
-        <CampoTelefone valor={telefone} aoAlterar={setTelefone} />
-        <div className="w-full max-w-md">
-          <Alerta texto={busca.erro} />
-        </div>
-        <button
-          type="submit"
-          disabled={!telefoneCompleto(telefone) || busca.executando}
-          className="cursor-pointer rounded-md bg-sidebar px-8 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sidebar-ativo disabled:cursor-not-allowed disabled:opacity-50"
+      <>
+        <form
+          onSubmit={iniciarAtendimento}
+          className="flex h-full min-h-screen flex-col items-center justify-center gap-6 px-6"
         >
-          {busca.executando ? "Buscando..." : "Iniciar Atendimento"}
-        </button>
-      </form>
-    );
-  }
-
-  if (tela === "cadastro") {
-    return (
-      <form onSubmit={cadastrar} className="mx-auto flex max-w-3xl flex-col gap-6 p-8">
-        <header>
-          <h1 className="text-2xl font-bold text-neutral-900">Cliente novo</h1>
-          <p className="text-sm text-neutral-500">
-            Telefone sem cadastro.
-          </p>
-        </header>
-
-        <section className="flex flex-col gap-3 rounded-lg border border-neutral-200 bg-white p-5">
-          <h2 className="text-sm font-semibold">Dados do cliente</h2>
-          <CamposCliente valor={novoCliente} aoAlterar={setNovoCliente} mostrarStatus={false} />
-        </section>
-
-        <section className="flex flex-col gap-3 rounded-lg border border-neutral-200 bg-white p-5">
-          <h2 className="text-sm font-semibold">Endereço de entrega</h2>
-          <CamposEndereco valor={novoEndereco} aoAlterar={setNovoEndereco} />
-        </section>
-
-        <Alerta texto={aviso ?? cadastro.erro} />
-
-        <div className="flex justify-between gap-3">
-          <button type="button" onClick={reiniciar} className={classeBotaoSecundario}>
-            Voltar
+          <h1 className="text-xl font-bold text-neutral-900">Atendimento por telefone</h1>
+          <CampoTelefone valor={telefone} aoAlterar={setTelefone} />
+          <div className="w-full max-w-md">
+            <Alerta texto={busca.erro} />
+          </div>
+          <button
+            type="submit"
+            disabled={!telefoneCompleto(telefone) || busca.executando}
+            className="cursor-pointer rounded-md bg-sidebar px-8 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sidebar-ativo disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {busca.executando ? "Buscando..." : "Iniciar Atendimento"}
           </button>
-          <button type="submit" disabled={cadastro.executando} className={classeBotaoPrimario}>
-            {cadastro.executando ? "Cadastrando..." : "Cadastrar e continuar"}
-          </button>
-        </div>
-      </form>
+        </form>
+
+        <ModalCliente
+          aberto={modal !== null}
+          modo={novo ? "novo" : "localizado"}
+          eyebrow={`${novo ? "Cliente novo" : "Cliente localizado"} · WhatsApp ${telefone}`}
+          titulo={novo ? "Cliente novo" : (resumo?.titulo ?? "")}
+          selos={resumo?.selos}
+          metricas={resumo?.metricas}
+          dados={dados}
+          aoAlterarDados={setDados}
+          regioes={regioes}
+          erroRegioes={consultaRegioes.erro}
+          erro={aviso ?? salvamento.erro}
+          salvando={salvamento.executando}
+          rotuloConfirmar={novo ? "Cadastrar cliente" : "Iniciar Venda"}
+          aoVoltar={voltarDoModal}
+          aoConfirmar={() => void confirmarCliente()}
+        />
+      </>
     );
   }
 
   if (!cliente) return null;
 
   const podeAvancar = liberadas[etapa + 1] ?? false;
+  const subtotal = itens.reduce((total, item) => total + item.produto.precoCentavos * item.quantidade, 0);
+  const descontos = itens.reduce(
+    (total, item) => total + descontoEfetivoDoItem(item, pagamento),
+    0
+  );
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-6 p-8">
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold text-neutral-900">Nova venda</h1>
-        <Etapas atual={etapa} aoIrPara={setEtapa} liberadas={liberadas} />
-      </header>
+    <>
+      <Dialogo
+        aberto={tela === "venda"}
+        titulo="Nova venda"
+        semCabecalho
+        aoFechar={reiniciar}
+        classeLargura="max-w-5xl"
+      >
+        <div className="flex h-[calc(100dvh-2rem)] flex-col">
+          <header className="shrink-0 px-8 pb-4 pt-6">
+          <p className="informacao-secundaria uppercase text-[#274634]">
+            Cliente localizado · WhatsApp {formatarTelefone(cliente.whatsapp)}
+          </p>
+          <h1 className="nome-cliente mt-1 uppercase leading-tight text-neutral-950">
+            {cliente.nome}
+          </h1>
+          <div className="mt-1">
+            <Etapas atual={etapa} aoIrPara={setEtapa} liberadas={liberadas} />
+          </div>
+          </header>
 
-      <section className="rounded-lg border border-neutral-200 bg-white p-5">
-        {etapa === 0 && <CartaoCliente cliente={cliente} aoTrocar={reiniciar} />}
+          <div className="min-h-0 flex-1 overflow-y-auto px-8 pb-6">
+          <div className="mt-1">
+          {etapa === 0 && <CartaoCliente cliente={cliente} aoTrocar={reiniciar} />}
 
-        {etapa === 1 && (
-          <EtapaEndereco
-            cliente={cliente}
-            selecionado={enderecoId}
-            aoSelecionar={setEnderecoId}
-            aoAdicionado={(novo) => {
-              setEnderecoId(novo.id);
-              obterCliente(cliente.id)
-                .then(setCliente)
-                .catch(() =>
-                  setCliente({ ...cliente, enderecos: [...cliente.enderecos, novo] })
-                );
-            }}
-          />
-        )}
+          {etapa === 1 && <EtapaItens itens={itens} aoAlterar={alterarItens} />}
 
-        {etapa === 2 && <EtapaItens itens={itens} aoAlterar={setItens} />}
+          {etapa === 2 && (
+            <div className="flex flex-col gap-4">
+              <header className="flex flex-wrap items-baseline gap-x-2 gap-y-1 bg-sidebar px-3 py-2 text-white">
+                <h2 className="text-base font-semibold">Entrega e Pagamento</h2>
+                <span className="informacao-secundaria text-white/60">
+                  endereços já cadastrados do cliente
+                </span>
+              </header>
 
-        {etapa === 3 && (
-          <EtapaPagamento
-            itens={itens}
-            endereco={endereco}
-            pagamento={pagamento}
-            aoAlterarPagamento={setPagamento}
-            observacao={observacao}
-            aoAlterarObservacao={setObservacao}
-          />
-        )}
-      </section>
+              <div className="grid gap-5 md:grid-cols-[1.1fr_1fr]">
+                <EtapaEndereco
+                  cliente={cliente}
+                  selecionado={enderecoId}
+                  aoSelecionar={setEnderecoId}
+                />
+                <EtapaPagamento
+                  pagamento={pagamento}
+                  temBotijaoP13={temBotijaoP13}
+                  aoAlterarPagamento={setPagamento}
+                  bandeira={bandeira}
+                  aoAlterarBandeira={setBandeira}
+                  observacao={observacao}
+                  aoAlterarObservacao={setObservacao}
+                />
+              </div>
+            </div>
+          )}
 
-      <Alerta texto={venda.erro} />
+          {etapa === 3 && (
+            <section className="flex flex-col gap-4 text-xs">
+              <header className="flex flex-wrap items-baseline gap-x-2 gap-y-1 bg-sidebar px-3 py-2 text-white">
+                <h2 className="text-base font-semibold">Resumo da Venda</h2>
+                <span className="text-[9px] text-white/60">confira antes de registrar</span>
+              </header>
 
-      <footer className="flex flex-wrap justify-between gap-3">
-        <button
-          type="button"
-          onClick={() => (etapa === 0 ? reiniciar() : setEtapa(etapa - 1))}
-          className={classeBotaoSecundario}
-        >
-          {etapa === 0 ? "Cancelar atendimento" : "Voltar"}
-        </button>
+              <div className="grid gap-6 md:grid-cols-2">
+                <section className="flex flex-col gap-1">
+                  <h3 className="text-[9px] font-semibold uppercase tracking-wide text-verde-painel">
+                    Cliente
+                  </h3>
+                  <p className="text-sm font-bold uppercase text-neutral-900">{cliente.nome}</p>
+                  <p className="text-[10px] text-neutral-500">
+                    WhatsApp · <strong className="text-neutral-800">{formatarTelefone(cliente.whatsapp)}</strong>
+                  </p>
+                  <p className="text-[10px] text-neutral-500">
+                    Entrega ·{" "}
+                    <strong className="text-neutral-800">
+                      {endereco
+                        ? [
+                            endereco.endereco,
+                            endereco.bairro,
+                            endereco.regiaoNome,
+                          ]
+                            .filter(Boolean)
+                            .join(" - ")
+                        : "Endereço não selecionado"}
+                    </strong>
+                  </p>
+                  <p className="text-[10px] text-neutral-500">
+                    Pagamento ·{" "}
+                    <strong className="uppercase text-neutral-800">
+                      {pagamentoCartao ? "Cartão" : rotulosPagamento[pagamento]}
+                    </strong>
+                  </p>
+                </section>
 
-        {etapa < nomesEtapas.length - 1 ? (
+                <section>
+                  <h3 className="mb-2 text-[9px] font-semibold uppercase tracking-wide text-verde-painel">
+                    Itens
+                  </h3>
+                  <ul className="divide-y divide-neutral-200">
+                    {itens.map((item) => (
+                      <li
+                        key={item.produto.id}
+                        className="flex justify-between gap-3 py-1.5 text-[9px] uppercase"
+                      >
+                        <span>
+                          {item.quantidade}× {item.produto.nome}
+                        </span>
+                        <span className="shrink-0">
+                          {formatarCentavos(subtotalCobradoDoItem(item, pagamento))}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <dl className="mt-2 space-y-1 border-b border-neutral-300 pb-2 text-[9px] text-neutral-500">
+                    <div className="flex justify-between gap-3">
+                      <dt>Subtotal</dt>
+                      <dd className="text-neutral-700">{formatarCentavos(subtotal)}</dd>
+                    </div>
+                    {descontos > 0 && (
+                      <div className="flex justify-between gap-3">
+                        <dt>Desconto</dt>
+                        <dd className="text-neutral-700">− {formatarCentavos(descontos)}</dd>
+                      </div>
+                    )}
+                    <div className="flex justify-between gap-3">
+                      <dt>Taxa de entrega</dt>
+                      <dd className="text-neutral-700">
+                        {formatarCentavos(endereco?.taxaEntregaCentavos ?? 0)}
+                      </dd>
+                    </div>
+                  </dl>
+
+                  <div className="mt-2 flex items-center justify-between gap-3">
+                    <span className="text-[9px] uppercase tracking-wide text-neutral-600">
+                      Total
+                    </span>
+                    <span className="text-2xl font-light tracking-wide text-neutral-900">
+                      {formatarCentavos(
+                        subtotal - descontos + (endereco?.taxaEntregaCentavos ?? 0)
+                      )}
+                    </span>
+                  </div>
+                </section>
+              </div>
+            </section>
+          )}
+          </div>
+          </div>
+
+          <div className="mx-8 mb-2 shrink-0">
+            <Alerta texto={venda.erro} />
+          </div>
+
+        <footer className="flex shrink-0 justify-between border-t border-neutral-300 px-8 py-4">
           <button
             type="button"
-            onClick={() => setEtapa(etapa + 1)}
-            disabled={!podeAvancar}
-            className={classeBotaoPrimario}
+            onClick={() => (etapa === 0 ? reiniciar() : setEtapa(etapa - 1))}
+            className={classeBotaoSecundario}
           >
-            Continuar: {nomesEtapas[etapa + 1]}
+            {etapa === 0
+              ? "Cancelar atendimento"
+              : etapa >= 2
+                ? `← ${nomesEtapas[etapa - 1]}`
+                : nomesEtapas[etapa - 1]}
           </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => void finalizar()}
-            disabled={venda.executando || itens.length === 0 || !endereco}
-            className={classeBotaoPrimario}
-          >
-            {venda.executando ? "Registrando..." : "Registrar Venda"}
-          </button>
-        )}
-      </footer>
+
+          {etapa < nomesEtapas.length - 1 ? (
+            <button
+              type="button"
+              onClick={() => setEtapa(etapa + 1)}
+              disabled={!podeAvancar}
+              className={classeBotaoPrimario}
+            >
+              {etapa === 2 ? `${nomesEtapas[etapa + 1]} →` : nomesEtapas[etapa + 1]}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void finalizar()}
+              disabled={
+                venda.executando ||
+                itens.length === 0 ||
+                !endereco ||
+                (pagamentoCartao && !bandeira) ||
+                (pagamento === "gas_do_povo" && !temBotijaoP13)
+              }
+              className={classeBotaoPrimario}
+            >
+              {venda.executando ? "Registrando..." : "Registrar Venda"}
+            </button>
+          )}
+        </footer>
+        </div>
+      </Dialogo>
 
       <ModalVendaRegistrada
         venda={vendaRegistrada}
+        cliente={cliente}
+        endereco={endereco}
         aoNovoAtendimento={reiniciar}
         aoVerEntregas={() => navegar("/entregas")}
       />
-    </div>
+    </>
   );
 }

@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
+import { Plus, UsersRound } from "lucide-react";
 import { ModalAcoesEntrega } from "../components/entregas/ModalAcoesEntregas";
+import { ModalEntregadores } from "../components/entregas/ModalEntregadores";
 import { TabelaEntregas } from "../components/entregas/TabelaEntregas";
 import type { OpcaoSeletor } from "../components/dashboard/SeletorSegmentado";
 import { CampoBusca } from "../components/CampoBusca";
@@ -9,7 +11,10 @@ import { Filtro } from "../components/clientes/Filtro";
 import { opcoesStatusEntrega } from "../constants/Entregas";
 import { useEntregadores } from "../hooks/UseEntregadores";
 import { useEntregas } from "../hooks/UseEntregas";
+import { buscarEntregadores } from "../services/Entregas";
+import { mensagemDeErro } from "../services/Api";
 import type { Entrega } from "../types/Entregas";
+import type { Entregador } from "../types/Entregas";
 import { dataParaIso, formatarDataHora } from "../utils/FormataData";
 import { formatarNumero, formatarVariacao } from "../utils/FormataNumero";
 
@@ -19,8 +24,33 @@ import iconeSetaVermelha from "../assets/icon-seta-vermelha.png";
 
 export function Entregas() {
   const painel = useEntregas();
-  const { entregadores, erro: erroEntregadores } = useEntregadores();
+  const {
+    entregadores,
+    erro: erroEntregadores,
+    recarregar: recarregarEntregadores,
+  } = useEntregadores();
   const [entregaAberta, setEntregaAberta] = useState<Entrega | null>(null);
+  const [modalEntregadores, setModalEntregadores] = useState<"lista" | "formulario" | null>(null);
+  const [todosEntregadores, setTodosEntregadores] = useState<Entregador[]>([]);
+  const [carregandoEntregadores, setCarregandoEntregadores] = useState(false);
+  const [erroListaEntregadores, setErroListaEntregadores] = useState<string | null>(null);
+
+  async function recarregarTodosEntregadores() {
+    setCarregandoEntregadores(true);
+    setErroListaEntregadores(null);
+    try {
+      setTodosEntregadores(await buscarEntregadores(null));
+    } catch (e) {
+      setErroListaEntregadores(mensagemDeErro(e));
+    } finally {
+      setCarregandoEntregadores(false);
+    }
+  }
+
+  function abrirGestaoEntregadores(tela: "lista" | "formulario") {
+    setModalEntregadores(tela);
+    if (tela === "lista") void recarregarTodosEntregadores();
+  }
 
   const opcoesEntregador = useMemo<OpcaoSeletor<string>[]>(
     () => [
@@ -55,7 +85,27 @@ export function Entregas() {
 
   return (
     <div className="flex flex-col gap-6 p-8">
-      <h1 className="text-2xl font-bold text-neutral-900">Gerenciamento de Entregas</h1>
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <h1 className="text-2xl font-bold text-neutral-900">Gerenciamento de Entregas</h1>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => abrirGestaoEntregadores("lista")}
+            className="inline-flex items-center gap-2 rounded-md border border-neutral-300 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-700 transition-colors hover:bg-neutral-50"
+          >
+            <UsersRound size={17} aria-hidden="true" />
+            Gerenciar Entregadores
+          </button>
+          <button
+            type="button"
+            onClick={() => abrirGestaoEntregadores("formulario")}
+            className="inline-flex items-center gap-2 rounded-md bg-verde-painel px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-verde-painel/90"
+          >
+            <Plus size={18} aria-hidden="true" />
+            Novo Entregador
+          </button>
+        </div>
+      </header>
 
       <section aria-label="Resumo das entregas" className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <CardResumo
@@ -156,6 +206,18 @@ export function Entregas() {
         aoFechar={() => setEntregaAberta(null)}
         aoAtualizar={painel.recarregar}
       />
+      {modalEntregadores !== null && (
+        <ModalEntregadores
+          aberto
+          telaInicial={modalEntregadores}
+          entregadores={todosEntregadores}
+          carregando={carregandoEntregadores}
+          erroLista={erroListaEntregadores}
+          aoFechar={() => setModalEntregadores(null)}
+          aoAtualizar={recarregarEntregadores}
+          aoRecarregarLista={recarregarTodosEntregadores}
+        />
+      )}
     </div>
   );
 }

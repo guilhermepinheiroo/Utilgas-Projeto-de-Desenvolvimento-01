@@ -88,9 +88,77 @@ export async function buscarResumoEntregas(data: string): Promise<ResumoEntregas
   };
 }
 
-export async function buscarEntregadores(): Promise<Entregador[]> {
-  const lista = await api.get<{ id: number; nome: string }[]>("/entregadores");
-  return lista.map((e) => ({ id: String(e.id), nome: e.nome }));
+interface EntregadorApi {
+  id: number;
+  nome: string;
+  telefone: string | null;
+  ativo: boolean;
+  cpf: string | null;
+  tipo_veiculo: "Moto" | "Carro" | "Caminhão" | null;
+  placa: string | null;
+  pix_observacoes: string | null;
+}
+
+export async function buscarEntregadores(ativo: boolean | null = true): Promise<Entregador[]> {
+  const lista = await api.get<EntregadorApi[]>("/entregadores", {
+    ativo: ativo ?? undefined,
+    incluir_inativos: ativo === null ? true : undefined,
+  });
+  return lista.map((e) => ({
+    id: String(e.id),
+    nome: e.nome,
+    telefone: e.telefone,
+    ativo: e.ativo,
+    cpf: e.cpf,
+    tipoVeiculo: e.tipo_veiculo,
+    placa: e.placa,
+    pixObservacoes: e.pix_observacoes,
+  }));
+}
+
+export async function cadastrarEntregador(dados: {
+  nome: string;
+  telefone: string;
+  cpf: string;
+  tipoVeiculo: "Moto" | "Carro" | "Caminhão";
+  placa: string;
+  pixObservacoes: string;
+}): Promise<void> {
+  await api.post("/entregadores", {
+    nome: dados.nome,
+    telefone: dados.telefone,
+    cpf: dados.cpf,
+    tipo_veiculo: dados.tipoVeiculo,
+    placa: dados.placa,
+    pix_observacoes: dados.pixObservacoes || null,
+  });
+}
+
+export async function atualizarEntregador(
+  id: string,
+  dados: {
+    nome: string;
+    telefone: string;
+    cpf: string;
+    tipoVeiculo: "Moto" | "Carro" | "Caminhão";
+    placa: string;
+    pixObservacoes: string;
+    ativo: boolean;
+  }
+): Promise<void> {
+  await api.patch(`/entregadores/${encodeURIComponent(id)}`, {
+    nome: dados.nome,
+    telefone: dados.telefone,
+    cpf: dados.cpf,
+    tipo_veiculo: dados.tipoVeiculo,
+    placa: dados.placa,
+    pix_observacoes: dados.pixObservacoes || null,
+    ativo: dados.ativo,
+  });
+}
+
+export async function excluirEntregador(id: string): Promise<void> {
+  await api.delete(`/entregadores/${encodeURIComponent(id)}`);
 }
 
 export async function trocarEntregador(id: string, entregadorId: string): Promise<void> {

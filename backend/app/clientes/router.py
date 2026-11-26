@@ -105,6 +105,7 @@ def _dados_endereco(dados: EnderecoCreate) -> dict:
     return {
         "endereco": endereco,
         "complemento": _limpar(dados.complemento),
+        "ponto_referencia": _limpar(dados.ponto_referencia),
         "cep": so_digitos(dados.cep) or None,
         "bairro": _limpar(dados.bairro),
         "regiao_id": dados.regiao_id,

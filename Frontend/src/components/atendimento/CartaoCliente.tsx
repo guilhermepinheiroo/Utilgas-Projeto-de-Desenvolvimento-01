@@ -6,8 +6,8 @@ import { BadgeStatusCliente } from "../clientes/BadgeStatusCliente";
 function Indicador({ rotulo, valor }: { rotulo: string; valor: string }) {
   return (
     <div className="rounded-md bg-neutral-50 px-3 py-2">
-      <dt className="text-[10px] uppercase tracking-wide text-neutral-500">{rotulo}</dt>
-      <dd className="text-sm font-semibold text-neutral-900">{valor}</dd>
+      <dt className="titulo-indicador uppercase tracking-wide text-neutral-500">{rotulo}</dt>
+      <dd className="indicador-valor text-neutral-900">{valor}</dd>
     </div>
   );
 }
@@ -34,12 +34,12 @@ export function CartaoCliente({
     <section className="rounded-lg border border-neutral-200 bg-white p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="flex items-center gap-2 text-lg font-bold text-neutral-900">
+          <p className="nome-cliente flex items-center gap-2 text-neutral-900">
             {cliente.nome} <BadgeStatusCliente status={cliente.status} />
           </p>
-          <p className="text-sm text-neutral-500">{formatarTelefone(cliente.whatsapp)}</p>
+          <p className="informacao-secundaria text-neutral-500">{formatarTelefone(cliente.whatsapp)}</p>
           {cliente.observacoes && (
-            <p className="mt-1 text-xs text-orange-700">Obs.: {cliente.observacoes}</p>
+            <p className="informacao-secundaria mt-1 text-orange-700">Obs.: {cliente.observacoes}</p>
           )}
         </div>
         <button
