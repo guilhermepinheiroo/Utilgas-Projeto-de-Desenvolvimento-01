@@ -12,6 +12,7 @@ export const clienteVazio: ClienteInput = {
 export const enderecoVazio: EnderecoInput = {
   endereco: "",
   complemento: "",
+  pontoReferencia: "",
   cep: "",
   bairro: "",
   regiaoId: "",

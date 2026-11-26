@@ -16,6 +16,7 @@ interface EnderecoApi {
   id: number;
   endereco: string;
   complemento: string | null;
+  ponto_referencia: string | null;
   cep: string | null;
   bairro: string | null;
   regiao_id: number | null;
@@ -63,6 +64,7 @@ function enderecoDeApi(e: EnderecoApi): Endereco {
     id: String(e.id),
     endereco: e.endereco,
     complemento: e.complemento,
+    pontoReferencia: e.ponto_referencia,
     cep: e.cep,
     bairro: e.bairro,
     regiaoId: e.regiao_id !== null ? String(e.regiao_id) : null,
@@ -122,6 +124,7 @@ function enderecoParaApi(input: EnderecoInput) {
   return {
     endereco: input.endereco.trim(),
     complemento: ouNulo(input.complemento),
+    ponto_referencia: ouNulo(input.pontoReferencia),
     cep: soDigitos(input.cep) || null,
     bairro: ouNulo(input.bairro),
     regiao_id: input.regiaoId ? Number(input.regiaoId) : null,
@@ -174,11 +177,11 @@ export async function obterCliente(id: string): Promise<ClienteDetalhado> {
 
 export async function criarCliente(
   input: ClienteInput,
-  endereco?: EnderecoInput
+  enderecos: EnderecoInput[] = []
 ): Promise<ClienteDetalhado> {
   const c = await api.post<ClienteApi>("/clientes", {
     ...clienteParaApi(input),
-    enderecos: endereco ? [enderecoParaApi({ ...endereco, principal: true })] : [],
+    enderecos: enderecos.map(enderecoParaApi),
   });
   return clienteDeApi(c);
 }
@@ -210,6 +213,12 @@ export async function atualizarEndereco(
     enderecoParaApi(input)
   );
   return enderecoDeApi(e);
+}
+
+export function removerEndereco(clienteId: string, enderecoId: string): Promise<void> {
+  return api.delete(
+    `/clientes/${encodeURIComponent(clienteId)}/enderecos/${encodeURIComponent(enderecoId)}`
+  );
 }
 
 export async function buscarRegioes(): Promise<Regiao[]> {

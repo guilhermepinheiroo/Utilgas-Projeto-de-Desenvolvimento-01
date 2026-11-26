@@ -9,4 +9,4 @@ export interface ItemPedido {
 export const subtotalDoItem = (item: ItemPedido) =>
   item.produto.precoCentavos * item.quantidade - item.descontoCentavos;
 
-export const nomesEtapas = ["Cliente", "Endereço", "Itens", "Pagamento"] as const;
+export const nomesEtapas = ["Cliente", "Itens", "Entrega e Pagamento", "Resumo"] as const;

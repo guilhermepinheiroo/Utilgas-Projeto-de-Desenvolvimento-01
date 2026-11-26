@@ -4,6 +4,12 @@ export type FiltroStatusEntrega = "todos" | StatusEntrega;
 export interface Entregador {
   id: string;
   nome: string;
+  telefone?: string | null;
+  ativo?: boolean;
+  cpf?: string | null;
+  tipoVeiculo?: "Moto" | "Carro" | "Caminhão" | null;
+  placa?: string | null;
+  pixObservacoes?: string | null;
 }
 
 // O endereço vem do cadastro do cliente

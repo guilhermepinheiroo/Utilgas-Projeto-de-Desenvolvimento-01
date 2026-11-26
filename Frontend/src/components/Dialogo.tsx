@@ -6,8 +6,13 @@ interface DialogoProps {
   titulo: string;
   aoFechar: () => void;
   children: ReactNode;
-  tituloVisivel?: boolean;
-  largura?: "normal" | "larga";
+  ocultarTitulo?: boolean;
+  classeLargura?: string;
+  classeBackdrop?: string;
+  classePainel?: string;
+  semCabecalho?: boolean;
+  semArredondamento?: boolean;
+  bloqueado?: boolean;
 }
 
 export function Dialogo({
@@ -15,11 +20,22 @@ export function Dialogo({
   titulo,
   aoFechar,
   children,
-  tituloVisivel = true,
-  largura = "normal",
+  ocultarTitulo = false,
+  classeLargura = "max-w-lg",
+  classeBackdrop = "backdrop:bg-black/50",
+  classePainel,
+  semCabecalho = false,
+  semArredondamento = false,
+  bloqueado = false,
 }: DialogoProps) {
   const dialogoRef = useRef<HTMLDialogElement>(null);
   const idTitulo = useId();
+
+  // Visual da caixa (arredondamento, fundo e sombra).
+  // Se passar classePainel, ela substitui o padrão por completo.
+  const painel =
+    classePainel ??
+    `${semArredondamento ? "rounded-none" : "rounded-lg"} bg-white shadow-xl`;
 
   useEffect(() => {
     const dialogo = dialogoRef.current;
@@ -33,32 +49,44 @@ export function Dialogo({
     <dialog
       ref={dialogoRef}
       onClose={aoFechar}
-      onClick={(e) => {
-        // Clique no fundo escuro (e não dentro da janela) fecha
-        if (e.target === e.currentTarget) aoFechar();
+      onCancel={(e) => {
+        if (bloqueado) e.preventDefault();
       }}
-      aria-labelledby={idTitulo}
-      className={`m-auto max-h-[92vh] w-full overflow-y-auto rounded-lg ${
-        largura === "larga" ? "max-w-2xl" : "max-w-lg"
-      } bg-white p-0 text-neutral-900 shadow-xl backdrop:bg-black/50`}
+      onClick={(e) => {
+        if (!bloqueado && e.target === e.currentTarget) aoFechar();
+      }}
+      aria-labelledby={semCabecalho ? undefined : idTitulo}
+      aria-label={semCabecalho ? titulo : undefined}
+      className={`m-auto w-full ${classeLargura} ${painel} p-0 text-neutral-900 ${classeBackdrop} ${
+        semCabecalho ? "overflow-hidden" : ""
+      }`}
     >
-      <div className="p-5">
-        <header className="mb-4 flex items-center justify-between gap-4">
-          <h2 id={idTitulo} className={tituloVisivel ? "text-base font-semibold" : "sr-only"}>
-            {titulo}
-          </h2>
-          <button
-            type="button"
-            onClick={aoFechar}
-            aria-label="Fechar"
-            className="ml-auto rounded-md p-1.5 hover:bg-neutral-100"
+      {semCabecalho ? (
+        aberto && children
+      ) : (
+        <div className="p-5">
+          <header
+            className={`mb-4 flex items-center gap-4 ${
+              ocultarTitulo ? "justify-end" : "justify-between"
+            }`}
           >
-            <img src={iconeFechar} alt="" className="size-5 object-contain" />
-          </button>
-        </header>
+            <h2 id={idTitulo} className={ocultarTitulo ? "sr-only" : "text-base font-semibold"}>
+              {titulo}
+            </h2>
+            <button
+              type="button"
+              onClick={aoFechar}
+              disabled={bloqueado}
+              aria-label="Fechar"
+              className="rounded-md p-2 transition-colors hover:bg-neutral-100 disabled:opacity-50"
+            >
+              <img src={iconeFechar} alt="" className="size-4 object-contain" />
+            </button>
+          </header>
 
-        {aberto && children}
-      </div>
+          {aberto && children}
+        </div>
+      )}
     </dialog>
   );
 }

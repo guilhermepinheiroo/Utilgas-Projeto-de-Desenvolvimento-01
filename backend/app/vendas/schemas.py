@@ -4,7 +4,9 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 Origem = Literal["atendimento", "portaria"]
-FormaPagamento = Literal["pix", "dinheiro", "cartao_credito", "cartao_debito"]
+FormaPagamento = Literal[
+    "pix", "dinheiro", "cartao_credito", "cartao_debito", "gas_do_povo"
+]
 StatusVenda = Literal["pendente", "concluida", "cancelada"]
 
 

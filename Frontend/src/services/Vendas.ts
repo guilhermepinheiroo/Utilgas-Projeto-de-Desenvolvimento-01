@@ -11,7 +11,7 @@ import type {
 } from "../types/Vendas";
 import { api, paraCentavos, paraReais } from "./Api";
 
-type FormaApi = "pix" | "dinheiro" | "cartao_credito" | "cartao_debito";
+type FormaApi = "pix" | "dinheiro" | "cartao_credito" | "cartao_debito" | "gas_do_povo";
 type StatusApi = "pendente" | "concluida" | "cancelada";
 
 interface VendaApi {
@@ -55,6 +55,7 @@ const formaDeApi: Record<FormaApi, FormaPagamento> = {
   dinheiro: "dinheiro",
   cartao_credito: "credito",
   cartao_debito: "debito",
+  gas_do_povo: "gas_do_povo",
 };
 
 export const formaParaApi: Record<FormaPagamento, FormaApi> = {
@@ -62,6 +63,7 @@ export const formaParaApi: Record<FormaPagamento, FormaApi> = {
   dinheiro: "dinheiro",
   credito: "cartao_credito",
   debito: "cartao_debito",
+  gas_do_povo: "gas_do_povo",
 };
 
 const statusDeApi: Record<StatusApi, StatusVenda> = {

@@ -29,9 +29,17 @@ interface CamposClienteProps {
   valor: ClienteInput;
   aoAlterar: (valor: ClienteInput) => void;
   mostrarStatus?: boolean;
+  aoTornarInadimplente?: () => void;
+  acaoDeStatusDesabilitada?: boolean;
 }
 
-export function CamposCliente({ valor, aoAlterar, mostrarStatus = true }: CamposClienteProps) {
+export function CamposCliente({
+  valor,
+  aoAlterar,
+  mostrarStatus = true,
+  aoTornarInadimplente,
+  acaoDeStatusDesabilitada = false,
+}: CamposClienteProps) {
   const alterar = <K extends keyof ClienteInput>(campo: K, v: ClienteInput[K]) =>
     aoAlterar({ ...valor, [campo]: v });
 
@@ -83,6 +91,16 @@ export function CamposCliente({ valor, aoAlterar, mostrarStatus = true }: Campos
             <option value="inativo">Inativo</option>
             <option value="inadimplente">Inadimplente</option>
           </select>
+          {aoTornarInadimplente && valor.status !== "inadimplente" && (
+            <button
+              type="button"
+              onClick={aoTornarInadimplente}
+              disabled={acaoDeStatusDesabilitada}
+              className="self-start rounded-md border border-red-200 px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Tornar inadimplente
+            </button>
+          )}
         </Campo>
       )}
       <Campo rotulo="Observações" className="sm:col-span-2">
@@ -130,6 +148,14 @@ export function CamposEndereco({ valor, aoAlterar }: CamposEnderecoProps) {
         <input
           value={valor.bairro}
           onChange={(e) => alterar("bairro", e.target.value)}
+          className={classeCampo}
+        />
+      </Campo>
+      <Campo rotulo="Ponto de referência">
+        <input
+          value={valor.pontoReferencia}
+          onChange={(e) => alterar("pontoReferencia", e.target.value)}
+          placeholder="portão, esquina, interfone"
           className={classeCampo}
         />
       </Campo>

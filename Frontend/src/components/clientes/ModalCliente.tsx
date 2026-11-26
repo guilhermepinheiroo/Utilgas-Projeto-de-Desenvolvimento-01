@@ -16,6 +16,8 @@ import {
 } from "../../utils/ValidaCliente";
 import { Dialogo } from "../Dialogo";
 import { CamposCliente, CamposEndereco } from "./FormCliente";
+import iconeSetaEsquerda from "../../assets/telaclientes/icon-pag-esq.png";
+import iconeSetaDireita from "../../assets/telaclientes/icon-pag-dir.png";
 
 interface ModalClienteProps {
   aberto: boolean;
@@ -62,6 +64,7 @@ function Formulario({ clienteId, whatsappInicial, aoFechar, aoSalvar }: Omit<Mod
           const valor: EnderecoInput = {
             endereco: principal.endereco,
             complemento: principal.complemento ?? "",
+            pontoReferencia: principal.pontoReferencia ?? "",
             cep: principal.cep ?? "",
             bairro: principal.bairro ?? "",
             regiaoId: principal.regiaoId ?? "",
@@ -79,9 +82,8 @@ function Formulario({ clienteId, whatsappInicial, aoFechar, aoSalvar }: Omit<Mod
     };
   }, [clienteId]);
 
-  async function salvar(evento: FormEvent<HTMLFormElement>) {
-    evento.preventDefault();
-    const problema = clienteValido(cliente) ?? enderecoValido(endereco);
+  async function persistir(clienteASalvar: ClienteInput) {
+    const problema = clienteValido(clienteASalvar) ?? enderecoValido(endereco);
     if (problema) {
       setErro(problema);
       return;
@@ -91,11 +93,11 @@ function Formulario({ clienteId, whatsappInicial, aoFechar, aoSalvar }: Omit<Mod
     setErro(null);
     try {
       if (!clienteId) {
-        aoSalvar(await criarCliente(cliente, endereco));
+        aoSalvar(await criarCliente(clienteASalvar, [endereco]));
         return;
       }
 
-      await atualizarCliente(clienteId, cliente);
+      await atualizarCliente(clienteId, clienteASalvar);
       if (!enderecoOriginal) {
         await adicionarEndereco(clienteId, endereco);
       } else if (enderecoOriginal.valor !== JSON.stringify(endereco)) {
@@ -109,13 +111,27 @@ function Formulario({ clienteId, whatsappInicial, aoFechar, aoSalvar }: Omit<Mod
     }
   }
 
+  async function salvar(evento: FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+    await persistir(cliente);
+  }
+
+  async function tornarInadimplente() {
+    await persistir({ ...cliente, status: "inadimplente" });
+  }
+
   if (carregando) return <p className="py-8 text-center text-sm text-neutral-500">Carregando...</p>;
 
   return (
     <form onSubmit={salvar} className="flex flex-col gap-5">
       <section className="flex flex-col gap-3">
         <h3 className="text-sm font-semibold">Dados do cliente</h3>
-        <CamposCliente valor={cliente} aoAlterar={setCliente} />
+        <CamposCliente
+          valor={cliente}
+          aoAlterar={setCliente}
+          aoTornarInadimplente={clienteId ? tornarInadimplente : undefined}
+          acaoDeStatusDesabilitada={salvando}
+        />
       </section>
 
       <section className="flex flex-col gap-3">
@@ -130,15 +146,21 @@ function Formulario({ clienteId, whatsappInicial, aoFechar, aoSalvar }: Omit<Mod
       )}
 
       <div className="flex justify-end gap-3">
-        <button type="button" onClick={aoFechar} className="rounded-md border px-4 py-2 text-sm">
+        <button
+          type="button"
+          onClick={aoFechar}
+          className="flex items-center gap-2 rounded-md border px-4 py-2 text-sm"
+        >
+          <img src={iconeSetaEsquerda} alt="" className="size-4 object-contain" />
           Cancelar
         </button>
         <button
           type="submit"
           disabled={salvando}
-          className="rounded-md bg-sidebar px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+          className="flex items-center gap-2 rounded-md bg-sidebar px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
         >
           {salvando ? "Salvando..." : clienteId ? "Salvar alterações" : "Cadastrar cliente"}
+          <img src={iconeSetaDireita} alt="" className="size-4 object-contain" />
         </button>
       </div>
     </form>
@@ -151,7 +173,7 @@ export function ModalCliente({ aberto, ...props }: ModalClienteProps) {
       aberto={aberto}
       titulo={props.clienteId ? "Editar cliente" : "Novo cliente"}
       aoFechar={props.aoFechar}
-      largura="larga"
+      classeLargura="max-w-2xl"
     >
       <Formulario key={props.clienteId ?? "novo"} {...props} />
     </Dialogo>

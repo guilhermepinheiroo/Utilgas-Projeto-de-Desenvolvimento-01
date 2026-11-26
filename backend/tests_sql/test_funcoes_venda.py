@@ -173,6 +173,67 @@ def test_totais_com_desconto_e_taxa_de_entrega(con, loja):
     assert float(res["itens"][0]["preco_unitario"]) == 115.00
 
 
+def test_gas_do_povo_zera_gas_mantem_outros_itens_e_cobra_entrega(con, loja):
+    res = venda(
+        con,
+        pedido(
+            loja,
+            [
+                {"produto_id": loja["p13"], "quantidade": 1},
+                {"produto_id": loja["p45"], "quantidade": 1},
+                {"produto_id": loja["kit"], "quantidade": 1},
+            ],
+            forma_pagamento="gas_do_povo",
+        ),
+    )
+
+    itens = {item["produto_id"]: item for item in res["itens"]}
+    assert float(itens[loja["p13"]]["subtotal"]) == 0
+    assert float(itens[loja["p13"]]["desconto"]) == 115
+    assert float(itens[loja["p45"]]["subtotal"]) == 420
+    assert float(itens[loja["p45"]]["desconto"]) == 0
+    assert float(itens[loja["kit"]]["subtotal"]) == 40
+    assert float(res["venda"]["subtotal"]) == 460
+    assert float(res["venda"]["desconto"]) == 115
+    assert float(res["venda"]["taxa_entrega"]) == 8
+    assert float(res["venda"]["total"]) == 468
+
+
+def test_gas_do_povo_na_portaria_nao_cobra_taxa_de_entrega(con, loja):
+    res = venda(
+        con,
+        {
+            "origem": "portaria",
+            "forma_pagamento": "gas_do_povo",
+            "itens": [{"produto_id": loja["p13"], "quantidade": 1}],
+        },
+    )
+
+    assert float(res["venda"]["subtotal"]) == 0
+    assert float(res["venda"]["taxa_entrega"]) == 0
+    assert float(res["venda"]["total"]) == 0
+
+
+@pytest.mark.parametrize("product_key", ["p45", "kit"])
+def test_gas_do_povo_exige_botijao_p13(con, loja, product_key):
+    estoque_inicial = estoque(con, loja[product_key])
+    erro = erro_de(
+        con,
+        "registrar_venda",
+        Jsonb(
+            {
+                "origem": "portaria",
+                "forma_pagamento": "gas_do_povo",
+                "itens": [{"produto_id": loja[product_key], "quantidade": 1}],
+            }
+        ),
+        None,
+    )
+
+    assert erro == "UG422"
+    assert estoque(con, loja[product_key]) == estoque_inicial
+
+
 def test_atendimento_cria_entrega_pendente_sem_entregador(con, loja):
     res = venda(
         con,

@@ -1,6 +1,6 @@
 import { lerSessao, limparSessao, salvarSessao, type Sessao } from "../auth/sessao";
 
-const URL_BASE: string = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+const URL_BASE: string = import.meta.env.VITE_API_URL ?? "http://localhost:8001";
 
 export class ErroApi extends Error {
   readonly status: number;

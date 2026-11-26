@@ -2,7 +2,8 @@
 import re
 from datetime import date, datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from postgrest.exceptions import APIError
 from supabase import Client
 
 from app.core.auth import get_current_user, get_db
@@ -11,6 +12,7 @@ from app.core.tempo import agora, meia_noite, para_iso_utc
 from app.entregas.schemas import (
     EntregadorCreate,
     EntregadorOut,
+    EntregadorUpdate,
     EntregaItem,
     EntregaOut,
     EntregaUpdate,
@@ -22,6 +24,8 @@ from app.entregas.schemas import (
 router = APIRouter(prefix="/entregas", tags=["Entregas"])
 entregadores_router = APIRouter(prefix="/entregadores", tags=["Entregadores"])
 regioes_router = APIRouter(prefix="/regioes", tags=["Regiões"])
+
+TIPOS_VEICULO = {"Moto", "Carro", "Caminhão"}
 
 # Uma consulta só traz entrega + entregador + endereço + venda + cliente + itens.
 SELECT_ENTREGA = (
@@ -235,22 +239,148 @@ def atualizar_entrega(
 # ------------------------------------------------------------- entregadores
 
 
+def _dados_entregador(campos: dict) -> dict:
+    nome = (campos.get("nome") or "").strip()
+    if not nome:
+        raise HTTPException(422, "Nome obrigatório")
+
+    telefone = re.sub(r"\D", "", campos.get("telefone") or "")
+    if len(telefone) not in (10, 11):
+        raise HTTPException(422, "Telefone deve ter DDD + número (10 ou 11 dígitos)")
+
+    cpf = re.sub(r"\D", "", campos.get("cpf") or "")
+    if not cpf:
+        raise HTTPException(422, "Informe o CPF")
+
+    tipo_veiculo = campos.get("tipo_veiculo")
+    if tipo_veiculo not in TIPOS_VEICULO:
+        raise HTTPException(422, "Selecione um tipo de veículo válido")
+
+    placa = (campos.get("placa") or "").strip()
+    if not placa:
+        raise HTTPException(422, "Informe a placa do veículo")
+
+    observacoes = campos.get("pix_observacoes")
+    observacoes = observacoes.strip() if observacoes else None
+    return {
+        "nome": nome,
+        "telefone": telefone,
+        "cpf": cpf,
+        "tipo_veiculo": tipo_veiculo,
+        "placa": placa,
+        "pix_observacoes": observacoes or None,
+    }
+
+
+def _executar_entregador(query) -> list[dict]:
+    try:
+        return query.execute().data
+    except APIError as e:
+        detalhe = f"{e.message} {e.details}".lower()
+        if "cpf" in detalhe and ("duplicate" in detalhe or "unique" in detalhe):
+            raise HTTPException(409, "Já existe um entregador cadastrado com esse CPF") from e
+        raise
+
+
 @entregadores_router.get("", response_model=list[EntregadorOut])
-def listar_entregadores(ativo: bool | None = True, db: Client = Depends(get_db)):
+def listar_entregadores(
+    ativo: bool | None = True,
+    incluir_inativos: bool = False,
+    db: Client = Depends(get_db),
+):
     q = db.table("entregadores").select("*")
-    if ativo is not None:
+    if not incluir_inativos and ativo is not None:
         q = q.eq("ativo", ativo)
     return q.order("nome").execute().data
 
 
 @entregadores_router.post("", response_model=EntregadorOut, status_code=201)
-def criar_entregador(dados: EntregadorCreate, db: Client = Depends(get_db)):
-    nome = dados.nome.strip()
-    if not nome:
-        raise HTTPException(422, "Nome obrigatório")
-    telefone = re.sub(r"\D", "", dados.telefone) if dados.telefone else None
-    novo = {"nome": nome, "telefone": telefone or None}
-    return db.table("entregadores").insert(novo).execute().data[0]
+def criar_entregador(
+    dados: EntregadorCreate,
+    db: Client = Depends(get_db),
+    _usuario: dict = Depends(get_current_user),
+):
+    novo = _dados_entregador(dados.model_dump())
+    return _executar_entregador(db.table("entregadores").insert(novo))[0]
+
+
+@entregadores_router.patch("/{entregador_id}", response_model=EntregadorOut)
+def atualizar_entregador(
+    entregador_id: int,
+    dados: EntregadorUpdate,
+    db: Client = Depends(get_db),
+    _usuario: dict = Depends(get_current_user),
+):
+    campos = dados.model_dump(exclude_unset=True)
+    if not campos:
+        raise HTTPException(422, "Nenhum campo para atualizar")
+
+    atual = (
+        db.table("entregadores")
+        .select("*")
+        .eq("id", entregador_id)
+        .limit(1)
+        .execute()
+        .data
+    )
+    if not atual:
+        raise HTTPException(404, "Entregador não encontrado")
+
+    campos_perfil = {"nome", "telefone", "cpf", "tipo_veiculo", "placa", "pix_observacoes"}
+    update: dict = {}
+    if campos_perfil.intersection(campos):
+        update.update(_dados_entregador({**atual[0], **campos}))
+    if "ativo" in campos:
+        if campos["ativo"] is None:
+            raise HTTPException(422, "Informe se o entregador está ativo")
+        update["ativo"] = campos["ativo"]
+
+    _executar_entregador(db.table("entregadores").update(update).eq("id", entregador_id))
+    return {**atual[0], **update}
+
+
+@entregadores_router.delete("/{entregador_id}", status_code=204)
+def excluir_entregador(
+    entregador_id: int,
+    db: Client = Depends(get_db),
+    _usuario: dict = Depends(get_current_user),
+):
+    atual = (
+        db.table("entregadores")
+        .select("id")
+        .eq("id", entregador_id)
+        .limit(1)
+        .execute()
+        .data
+    )
+    if not atual:
+        raise HTTPException(404, "Entregador não encontrado")
+
+    entregas_vinculadas = (
+        db.table("entregas")
+        .select("id")
+        .eq("entregador_id", entregador_id)
+        .limit(1)
+        .execute()
+        .data
+    )
+    if entregas_vinculadas:
+        raise HTTPException(
+            409,
+            "Não é possível excluir um entregador associado a entregas. O histórico foi preservado.",
+        )
+
+    try:
+        db.table("entregadores").delete().eq("id", entregador_id).execute()
+    except APIError as e:
+        if e.code == "23503" or "foreign key" in f"{e.message} {e.details}".lower():
+            raise HTTPException(
+                409,
+                "Não é possível excluir um entregador associado a entregas. O histórico foi preservado.",
+            ) from e
+        raise
+
+    return Response(status_code=204)
 
 
 # ------------------------------------------------------------------ regiões

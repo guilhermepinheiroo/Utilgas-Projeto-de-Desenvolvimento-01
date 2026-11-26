@@ -9,6 +9,7 @@ StatusCliente = Literal["ativo", "inativo", "inadimplente"]
 class EnderecoBase(BaseModel):
     endereco: str = Field(description="Rua e número")
     complemento: str | None = None
+    ponto_referencia: str | None = None
     cep: str | None = None
     bairro: str | None = None
     regiao_id: int | None = None

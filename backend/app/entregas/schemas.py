@@ -4,6 +4,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 StatusEntrega = Literal["pendente", "entregue", "cancelada"]
+TipoVeiculo = Literal["Moto", "Carro", "Caminhão"]
 
 
 class EntregaItem(BaseModel):
@@ -59,12 +60,29 @@ class EntregadorBase(BaseModel):
 
 
 class EntregadorCreate(EntregadorBase):
-    pass
+    cpf: str
+    tipo_veiculo: TipoVeiculo
+    placa: str
+    pix_observacoes: str | None = None
+
+
+class EntregadorUpdate(BaseModel):
+    nome: str | None = None
+    telefone: str | None = None
+    cpf: str | None = None
+    tipo_veiculo: TipoVeiculo | None = None
+    placa: str | None = None
+    pix_observacoes: str | None = None
+    ativo: bool | None = None
 
 
 class EntregadorOut(EntregadorBase):
     id: int
     ativo: bool
+    cpf: str | None = None
+    tipo_veiculo: TipoVeiculo | None = None
+    placa: str | None = None
+    pix_observacoes: str | None = None
 
 
 class RegiaoOut(BaseModel):

@@ -1,120 +1,183 @@
-import type { Endereco } from "../../types/clientes";
-import type { FormaPagamento } from "../../types/Vendas";
-import { formatarCentavos } from "../../utils/FormatacaoMoeda";
-import { subtotalDoItem, type ItemPedido } from "./tipos";
-
-import iconeCartao from "../../assets/icon-cartao.png";
-import iconeDinheiro from "../../assets/telavendas/icon-dinheiro-vivo.png";
-import iconePix from "../../assets/telavendas/icon-pix.png";
-
-const formas: Array<{ id: FormaPagamento; nome: string; icone: string }> = [
-  { id: "pix", nome: "PIX", icone: iconePix },
-  { id: "dinheiro", nome: "Dinheiro", icone: iconeDinheiro },
-  { id: "credito", nome: "Cartão de Crédito", icone: iconeCartao },
-  { id: "debito", nome: "Cartão de Débito", icone: iconeCartao },
-];
+import { useState } from "react";
+import type { BandeiraCartao, FormaPagamento } from "../../types/Vendas";
+import { ModalBandeira } from "./ModalBandeira";
 
 interface EtapaPagamentoProps {
-  itens: ItemPedido[];
-  endereco: Endereco | null;
   pagamento: FormaPagamento;
+  temBotijaoP13: boolean;
   aoAlterarPagamento: (forma: FormaPagamento) => void;
+  bandeira: BandeiraCartao | null;
+  aoAlterarBandeira: (bandeira: BandeiraCartao | null) => void;
   observacao: string;
   aoAlterarObservacao: (texto: string) => void;
 }
 
 export function EtapaPagamento({
-  itens,
-  endereco,
   pagamento,
+  temBotijaoP13,
   aoAlterarPagamento,
+  bandeira,
+  aoAlterarBandeira,
   observacao,
   aoAlterarObservacao,
 }: EtapaPagamentoProps) {
-  const bruto = itens.reduce((t, i) => t + i.produto.precoCentavos * i.quantidade, 0);
-  const desconto = itens.reduce((t, i) => t + i.descontoCentavos, 0);
-  const taxa = endereco?.taxaEntregaCentavos ?? 0;
+  const pagamentoCartao = pagamento === "credito" || pagamento === "debito";
+  const [mostrarTiposCartao, setMostrarTiposCartao] = useState(pagamentoCartao);
+  const [modalBandeiraAberto, setModalBandeiraAberto] = useState(false);
+  const [formaCartaoPendente, setFormaCartaoPendente] = useState<"credito" | "debito" | null>(
+    null
+  );
+  const [bandeiraPendente, setBandeiraPendente] = useState<BandeiraCartao | null>(null);
+
+  function selecionarPagamento(forma: FormaPagamento) {
+    aoAlterarPagamento(forma);
+    aoAlterarBandeira(null);
+    setMostrarTiposCartao(false);
+  }
+
+  function abrirSelecaoBandeira(forma: "credito" | "debito") {
+    setFormaCartaoPendente(forma);
+    setBandeiraPendente(null);
+    setModalBandeiraAberto(true);
+  }
+
+  function fecharSelecaoBandeira() {
+    setModalBandeiraAberto(false);
+    setFormaCartaoPendente(null);
+    setBandeiraPendente(null);
+  }
+
+  function confirmarBandeira() {
+    if (!formaCartaoPendente || !bandeiraPendente) return;
+    aoAlterarPagamento(formaCartaoPendente);
+    aoAlterarBandeira(bandeiraPendente);
+    fecharSelecaoBandeira();
+  }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
+    <>
       <div className="flex flex-col gap-4">
         <fieldset>
-          <legend className="mb-2 text-base font-semibold">Forma de pagamento</legend>
-          <div className="grid grid-cols-2 gap-2">
-            {formas.map((forma) => (
-              <label
-                key={forma.id}
-                className={`relative flex min-h-14 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border p-2 text-center text-xs ${
-                  pagamento === forma.id ? "border-sidebar bg-[#f5faf7]" : "border-neutral-300"
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="pagamento-atendimento"
-                  checked={pagamento === forma.id}
-                  onChange={() => aoAlterarPagamento(forma.id)}
-                  className="absolute right-2 top-2 accent-sidebar"
-                />
-                <img src={forma.icone} alt="" className="size-4 object-contain" />
-                {forma.nome}
-              </label>
-            ))}
+          <legend className="titulo-campo mb-2 text-neutral-800">
+            Forma de pagamento
+          </legend>
+          <div className="grid grid-cols-2 gap-1 sm:grid-cols-4">
+            <button
+              type="button"
+              aria-pressed={pagamento === "pix"}
+              onClick={() => selecionarPagamento("pix")}
+              className={`min-h-8 border px-2 text-xs ${
+                pagamento === "pix"
+                  ? "border-sidebar bg-sidebar text-white"
+                  : "border-neutral-300 bg-white text-neutral-900"
+              }`}
+            >
+              Pix
+            </button>
+            <button
+              type="button"
+              aria-pressed={pagamento === "dinheiro"}
+              onClick={() => selecionarPagamento("dinheiro")}
+              className={`min-h-8 border px-2 text-xs ${
+                pagamento === "dinheiro"
+                  ? "border-sidebar bg-sidebar text-white"
+                  : "border-neutral-300 bg-white text-neutral-900"
+              }`}
+            >
+              Dinheiro
+            </button>
+            <button
+              type="button"
+              aria-pressed={pagamentoCartao}
+              aria-expanded={mostrarTiposCartao}
+              onClick={() => setMostrarTiposCartao((atual) => !atual)}
+              className={`min-h-8 border px-2 text-xs ${
+                pagamentoCartao || mostrarTiposCartao
+                  ? "border-sidebar bg-sidebar text-white"
+                  : "border-neutral-300 bg-white text-neutral-900"
+              }`}
+            >
+              Cartão
+            </button>
+            <button
+              type="button"
+              aria-pressed={pagamento === "gas_do_povo"}
+              disabled={!temBotijaoP13}
+              onClick={() => selecionarPagamento("gas_do_povo")}
+              className={`min-h-8 border px-2 text-xs disabled:cursor-not-allowed disabled:opacity-50 ${
+                pagamento === "gas_do_povo"
+                  ? "border-sidebar bg-sidebar text-white"
+                  : "border-neutral-300 bg-white text-neutral-900"
+              }`}
+            >
+              Gás do Povo
+            </button>
           </div>
+          {!temBotijaoP13 && (
+            <p className="mt-1 text-[10px] text-neutral-500">
+              Adicione um botijão P13 para habilitar o Gás do Povo.
+            </p>
+          )}
+
+          {mostrarTiposCartao && (
+            <div className="mt-1 grid grid-cols-2 gap-1" aria-label="Tipo de cartão">
+              {([
+                ["credito", "Crédito"],
+                ["debito", "Débito"],
+              ] as const).map(([forma, rotulo]) => (
+                <button
+                  key={forma}
+                  type="button"
+                  aria-pressed={pagamento === forma}
+                  onClick={() => abrirSelecaoBandeira(forma)}
+                  className={`min-h-7 border px-2 text-[10px] ${
+                    pagamento === forma
+                      ? "border-sidebar bg-[#dce7df] text-sidebar"
+                      : "border-neutral-300 bg-white text-neutral-700"
+                  }`}
+                >
+                  {rotulo}
+                </button>
+              ))}
+            </div>
+          )}
         </fieldset>
 
-        <label className="flex flex-col gap-1 text-sm font-medium">
+        {pagamento === "gas_do_povo" && (
+          <p role="status" className="border border-[#8eaa96] bg-[#dce7df] px-3 py-2 text-xs text-sidebar">
+            Botijões P13 ficam zerados; outros botijões, água, acessórios e taxa de entrega continuam cobrados.
+          </p>
+        )}
+
+        {pagamentoCartao && bandeira && (
+          <p
+            role="status"
+            className="border border-[#8eaa96] bg-[#dce7df] px-3 py-2 text-xs font-semibold text-sidebar"
+          >
+            Levar máquina para cartão {bandeira}
+          </p>
+        )}
+
+        <label className="flex flex-col gap-1 text-[10px] font-medium text-neutral-800">
           Observação para o entregador
-          <textarea
-            rows={3}
+          <input
+            type="text"
             maxLength={300}
             value={observacao}
-            onChange={(e) => aoAlterarObservacao(e.target.value)}
-            placeholder="Ex.: troco para R$ 200"
-            className="resize-none rounded-md border border-neutral-300 p-2 text-sm font-normal"
+            onChange={(evento) => aoAlterarObservacao(evento.target.value)}
+            placeholder="Ex.: portão azul, chamar no interfone"
+            className="h-[30px] border border-neutral-300 bg-[#f3f3f3] px-2 text-[10px] font-normal text-neutral-900 placeholder:text-neutral-400"
           />
         </label>
       </div>
 
-      <section className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-sm">
-        <h3 className="mb-3 font-semibold">Resumo do pedido</h3>
-        <ul className="mb-3 space-y-1">
-          {itens.map((item) => (
-            <li key={item.produto.id} className="flex justify-between gap-2">
-              <span>
-                {item.quantidade}× {item.produto.nome}
-              </span>
-              <span>{formatarCentavos(subtotalDoItem(item))}</span>
-            </li>
-          ))}
-        </ul>
-        <dl className="space-y-1 border-t border-neutral-200 pt-2 text-xs">
-          <div className="flex justify-between">
-            <dt>Produtos</dt>
-            <dd>{formatarCentavos(bruto)}</dd>
-          </div>
-          {desconto > 0 && (
-            <div className="flex justify-between text-green-700">
-              <dt>Desconto</dt>
-              <dd>− {formatarCentavos(desconto)}</dd>
-            </div>
-          )}
-          <div className="flex justify-between">
-            <dt>Taxa de entrega {endereco?.regiaoNome ? `(${endereco.regiaoNome})` : ""}</dt>
-            <dd>{formatarCentavos(taxa)}</dd>
-          </div>
-        </dl>
-        <p className="mt-3 flex justify-between rounded-md bg-[#d2e4da] px-3 py-2 font-bold">
-          <span>Total</span>
-          <span>{formatarCentavos(bruto - desconto + taxa)}</span>
-        </p>
-        {endereco && (
-          <p className="mt-3 text-xs text-neutral-600">
-            Entregar em: {endereco.endereco}
-            {endereco.complemento && ` (${endereco.complemento})`}
-            {endereco.bairro && ` - ${endereco.bairro}`}
-          </p>
-        )}
-      </section>
-    </div>
+      <ModalBandeira
+        aberto={modalBandeiraAberto}
+        selecionada={bandeiraPendente}
+        aoSelecionar={setBandeiraPendente}
+        aoFechar={fecharSelecaoBandeira}
+        aoConfirmar={confirmarBandeira}
+      />
+    </>
   );
 }

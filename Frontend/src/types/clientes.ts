@@ -18,6 +18,7 @@ export interface Endereco {
   id: string;
   endereco: string;
   complemento: string | null;
+  pontoReferencia: string | null;
   cep: string | null;
   bairro: string | null;
   regiaoId: string | null;
@@ -59,6 +60,7 @@ export interface ClienteInput {
 export interface EnderecoInput {
   endereco: string;
   complemento: string;
+  pontoReferencia: string;
   cep: string;
   bairro: string;
   regiaoId: string;
