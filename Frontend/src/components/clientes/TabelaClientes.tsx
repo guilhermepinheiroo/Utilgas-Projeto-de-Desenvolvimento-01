@@ -12,6 +12,7 @@ interface TabelaClientesProps {
   aoMudarPagina: (pagina: number) => void;
   aoEditar: (cliente: Cliente) => void;
   aoExcluir: (cliente: Cliente) => void;
+  aoAlternarInadimplencia: (cliente: Cliente) => void;
 }
 
 const colunas = ["Nome", "WhatsApp", "Endereço", "Última Compra", "Status"];
@@ -25,6 +26,7 @@ export function TabelaClientes({
   aoMudarPagina,
   aoEditar,
   aoExcluir,
+  aoAlternarInadimplencia,
 }: TabelaClientesProps) {
   return (
     <section className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
@@ -54,6 +56,7 @@ export function TabelaClientes({
                 cliente={cliente}
                 aoEditar={aoEditar}
                 aoExcluir={aoExcluir}
+                aoAlternarInadimplencia={aoAlternarInadimplencia}
               />
             ))}
           </tbody>

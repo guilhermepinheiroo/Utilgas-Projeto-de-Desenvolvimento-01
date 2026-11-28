@@ -1,6 +1,7 @@
 """Módulo Clientes — responsável: Back-end 1."""
 import re
 from datetime import timedelta
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from postgrest.exceptions import APIError
@@ -8,19 +9,24 @@ from supabase import Client
 
 from app.clientes.schemas import (
     ClienteCreate,
+    ClienteInadimplente,
     ClienteOut,
     ClienteResumo,
     ClientesPagina,
     ClienteUpdate,
     EnderecoCreate,
     EnderecoOut,
+    InadimplenciaCreate,
+    InadimplentesPagina,
     Indicador,
     ResumoClientes,
     StatusCliente,
 )
 from app.core.auth import get_db
+from app.core.db_errors import chamar_rpc
+from app.core.documentos import cpf_cnpj_valido
 from app.core.frequencia import datas_de_compra, dia_local, indicadores
-from app.core.tempo import inicio_do_mes, para_iso_utc
+from app.core.tempo import agora, inicio_do_mes, para_iso_utc
 
 router = APIRouter(prefix="/clientes", tags=["Clientes"])
 
@@ -39,6 +45,26 @@ def _validar_telefone(telefone: str) -> str:
     if len(digitos) not in (10, 11):
         raise HTTPException(422, "Telefone deve ter DDD + número (10 ou 11 dígitos)")
     return digitos
+
+
+def _validar_cpf_cnpj(valor: str | None) -> str | None:
+    """Devolve só os dígitos (ou None se vazio). 422 se não for CPF/CNPJ válido."""
+    digitos = so_digitos(valor)
+    if not digitos:
+        return None
+    if len(digitos) not in (11, 14) or not cpf_cnpj_valido(digitos):
+        raise HTTPException(422, "CPF/CNPJ inválido")
+    return digitos
+
+
+_EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _validar_email(valor: str | None) -> str | None:
+    email = _limpar(valor)
+    if email and not _EMAIL.match(email):
+        raise HTTPException(422, "E-mail inválido")
+    return email
 
 
 def _limpar(valor: str | None) -> str | None:
@@ -123,6 +149,19 @@ def _contar(q) -> int:
     return q.execute().count or 0
 
 
+def _aplicar_busca(q, busca: str | None):
+    """Filtro de texto por nome, telefone ou CPF/CNPJ."""
+    if busca and busca.strip():
+        termo = re.sub(r"[,()*%\\]", " ", busca).strip()
+        digitos = so_digitos(busca)
+        filtros = [f"nome.ilike.*{termo}*"] if termo else []
+        if digitos:
+            filtros += [f"telefone.ilike.*{digitos}*", f"cpf_cnpj.ilike.*{digitos}*"]
+        if filtros:
+            q = q.or_(",".join(filtros))
+    return q
+
+
 # ----------------------------------------------------------------- listagem
 
 
@@ -142,14 +181,7 @@ def listar_clientes(
     )
     if status:
         q = q.eq("status", status)
-    if busca and busca.strip():
-        termo = re.sub(r"[,()*%\\]", " ", busca).strip()
-        digitos = so_digitos(busca)
-        filtros = [f"nome.ilike.*{termo}*"] if termo else []
-        if digitos:
-            filtros += [f"telefone.ilike.*{digitos}*", f"cpf_cnpj.ilike.*{digitos}*"]
-        if filtros:
-            q = q.or_(",".join(filtros))
+    q = _aplicar_busca(q, busca)
 
     inicio = (pagina - 1) * tamanho
     resp = q.order("nome").range(inicio, inicio + tamanho - 1).execute()
@@ -207,6 +239,52 @@ def resumo_clientes(db: Client = Depends(get_db)):
     )
 
 
+@router.get("/inadimplentes", response_model=InadimplentesPagina)
+def listar_inadimplentes(
+    busca: str | None = Query(None, description="Nome, telefone ou CPF/CNPJ"),
+    pagina: int = Query(1, ge=1),
+    tamanho: int = Query(10, ge=1, le=100),
+    db: Client = Depends(get_db),
+):
+    """Clientes inadimplentes, do mais antigo para o mais recente."""
+    q = (
+        db.table("clientes")
+        .select(
+            "id, nome, telefone, cpf_cnpj, status, inadimplente_desde, "
+            "motivo_inadimplencia, valor_devido",
+            count="exact",
+        )
+        .eq("status", "inadimplente")
+    )
+    q = _aplicar_busca(q, busca)
+    inicio = (pagina - 1) * tamanho
+    resp = q.order("inadimplente_desde").order("id").range(inicio, inicio + tamanho - 1).execute()
+
+    # Soma de TODOS os inadimplentes do filtro (não só da página atual)
+    todos = _aplicar_busca(
+        db.table("clientes").select("valor_devido").eq("status", "inadimplente"), busca
+    ).execute().data
+    total_devido = sum(
+        (Decimal(str(r["valor_devido"])) for r in todos if r["valor_devido"]), Decimal(0)
+    )
+
+    hoje = dia_local(agora())
+    itens = [
+        ClienteInadimplente(
+            **row,
+            dias_inadimplente=max(0, (hoje - dia_local(row["inadimplente_desde"])).days),
+        )
+        for row in resp.data
+    ]
+    return InadimplentesPagina(
+        itens=itens,
+        total=resp.count or 0,
+        total_devido=total_devido,
+        pagina=pagina,
+        tamanho=tamanho,
+    )
+
+
 @router.get("/por-telefone/{telefone}", response_model=ClienteOut)
 def buscar_por_telefone(telefone: str, db: Client = Depends(get_db)):
     """Tela inicial do Atendimento. 404 se não existir (front abre cadastro)."""
@@ -230,15 +308,19 @@ def obter_cliente(cliente_id: int, db: Client = Depends(get_db)):
 
 @router.post("", response_model=ClienteOut, status_code=201)
 def criar_cliente(dados: ClienteCreate, db: Client = Depends(get_db)):
-    """Telefone deve ser único; guardar somente dígitos."""
+    """Telefone deve ser único; guardar somente dígitos.
+
+    Cliente e endereços são gravados numa única transação (função SQL
+    `criar_cliente`): ou grava tudo, ou não grava nada.
+    """
     nome = dados.nome.strip()
     if not nome:
         raise HTTPException(422, "Nome obrigatório")
     novo = {
         "nome": nome,
         "telefone": _validar_telefone(dados.telefone),
-        "cpf_cnpj": so_digitos(dados.cpf_cnpj) or None,
-        "email": _limpar(dados.email),
+        "cpf_cnpj": _validar_cpf_cnpj(dados.cpf_cnpj),
+        "email": _validar_email(dados.email),
         "observacoes": _limpar(dados.observacoes),
         "status": dados.status,
     }
@@ -249,21 +331,14 @@ def criar_cliente(dados: ClienteCreate, db: Client = Depends(get_db)):
             e["principal"] = i == indice
 
     try:
-        cliente = db.table("clientes").insert(novo).execute().data[0]
+        cliente_id = chamar_rpc(db, "criar_cliente", {"p_cliente": novo, "p_enderecos": enderecos})
     except APIError as e:
         if e.code == "23505":
             raise _erro_unico(e) from e
+        if e.code == "23503":  # regiao_id inexistente
+            raise HTTPException(422, "Região de entrega não encontrada") from e
         raise
-
-    if enderecos:
-        try:
-            db.table("enderecos").insert(
-                [{**e, "cliente_id": cliente["id"]} for e in enderecos]
-            ).execute()
-        except Exception:
-            db.table("clientes").delete().eq("id", cliente["id"]).execute()
-            raise
-    return _cliente_out(db, _buscar_cliente(db, cliente["id"]))
+    return _cliente_out(db, _buscar_cliente(db, cliente_id))
 
 
 @router.put("/{cliente_id}", response_model=ClienteOut)
@@ -278,10 +353,11 @@ def atualizar_cliente(cliente_id: int, dados: ClienteUpdate, db: Client = Depend
     if "telefone" in campos:
         campos["telefone"] = _validar_telefone(campos["telefone"] or "")
     if "cpf_cnpj" in campos:
-        campos["cpf_cnpj"] = so_digitos(campos["cpf_cnpj"]) or None
-    for campo in ("email", "observacoes"):
-        if campo in campos:
-            campos[campo] = _limpar(campos[campo])
+        campos["cpf_cnpj"] = _validar_cpf_cnpj(campos["cpf_cnpj"])
+    if "email" in campos:
+        campos["email"] = _validar_email(campos["email"])
+    if "observacoes" in campos:
+        campos["observacoes"] = _limpar(campos["observacoes"])
     if "status" in campos and campos["status"] is None:
         del campos["status"]
 
@@ -308,6 +384,44 @@ def excluir_cliente(cliente_id: int, db: Client = Depends(get_db)):
         )
     db.table("clientes").delete().eq("id", cliente_id).execute()
     return Response(status_code=204)
+
+
+# ------------------------------------------------------------ inadimplência
+
+
+@router.post("/{cliente_id}/inadimplente", response_model=ClienteOut)
+def marcar_inadimplente(
+    cliente_id: int, dados: InadimplenciaCreate | None = None, db: Client = Depends(get_db)
+):
+    """Coloca o cliente na categoria de inadimplentes (motivo e valor são opcionais).
+
+    A data (`inadimplente_desde`) é gravada pelo banco ao entrar na categoria.
+    """
+    cliente = _buscar_cliente(db, cliente_id)
+    if cliente["status"] == "inadimplente":
+        raise HTTPException(409, "Cliente já está na categoria de inadimplentes")
+    dados = dados or InadimplenciaCreate()
+    db.table("clientes").update(
+        {
+            "status": "inadimplente",
+            "motivo_inadimplencia": _limpar(dados.motivo),
+            "valor_devido": float(dados.valor_devido) if dados.valor_devido is not None else None,
+        }
+    ).eq("id", cliente_id).execute()
+    return _cliente_out(db, _buscar_cliente(db, cliente_id))
+
+
+@router.delete("/{cliente_id}/inadimplente", response_model=ClienteOut)
+def remover_inadimplente(cliente_id: int, db: Client = Depends(get_db)):
+    """Tira o cliente da categoria de inadimplentes (volta a "ativo").
+
+    O banco apaga data, motivo e valor devido ao sair da categoria.
+    """
+    cliente = _buscar_cliente(db, cliente_id)
+    if cliente["status"] != "inadimplente":
+        raise HTTPException(409, "Cliente não está na categoria de inadimplentes")
+    db.table("clientes").update({"status": "ativo"}).eq("id", cliente_id).execute()
+    return _cliente_out(db, _buscar_cliente(db, cliente_id))
 
 
 # ------------------------------------------------------------- endereços

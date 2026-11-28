@@ -302,7 +302,7 @@ git push -u origin feature/nome-da-tarefa
 
 | Módulo | Rotas principais | Responsável |
 |---|---|---|
-| Clientes | `/clientes`, `/clientes/por-telefone/{tel}`, endereços | Back-end 1 |
+| Clientes | `/clientes`, `/clientes/por-telefone/{tel}`, endereços, inadimplência (`GET /clientes/inadimplentes`, `POST` e `DELETE /clientes/{id}/inadimplente`) | Back-end 1 |
 | Vendas | `POST /vendas`, `GET /vendas` | Back-end 1 |
 | Produtos e Estoque | `/produtos`, `/estoque/*` | Back-end 2 |
 | Entregas | `/entregas`, `/entregadores`, `/regioes` | Back-end 2 |

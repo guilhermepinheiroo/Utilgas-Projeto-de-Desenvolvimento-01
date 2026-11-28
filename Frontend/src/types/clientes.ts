@@ -37,6 +37,9 @@ export interface IndicadoresCliente {
 
 export interface ClienteDetalhado {
   id: string;
+  inadimplenteDesde: string | null; // ISO; só quando status = "inadimplente"
+  motivoInadimplencia: string | null;
+  valorDevido: number | null; // em reais
   nome: string;
   whatsapp: string;
   cpf: string | null;
@@ -95,4 +98,9 @@ export interface ParametrosBuscaClientes {
 export interface PaginaClientes {
   itens: Cliente[];
   total: number;
+}
+
+export interface InadimplenciaInput {
+  motivo: string;
+  valorDevido: string; // texto digitado, ex.: "230,50" ("" = não informado)
 }

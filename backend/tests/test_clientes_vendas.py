@@ -4,11 +4,12 @@ from types import SimpleNamespace
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from postgrest.exceptions import APIError
 
-from app.core.auth import get_current_user, get_db
-from app.main import app
 from app.clientes.router import _dados_endereco
 from app.clientes.schemas import EnderecoCreate
+from app.core.auth import get_current_user, get_db
+from app.main import app
 
 
 class FakeQuery:
@@ -20,6 +21,8 @@ class FakeQuery:
 
     def execute(self):
         resp = self._roteiro.pop(0)
+        if isinstance(resp, Exception):
+            raise resp
         if isinstance(resp, dict) and "data" in resp and "count" in resp:
             return SimpleNamespace(data=resp["data"], count=resp["count"])
         return SimpleNamespace(data=resp, count=None)
@@ -142,8 +145,7 @@ def test_criar_cliente_telefone_invalido(client):
 def test_criar_cliente_guarda_so_digitos_e_um_principal(client):
     db = usar_db(
         FakeDB(
-            [{"id": 1}],  # insert cliente
-            [{"id": 3}],  # insert endereços
+            1,  # rpc criar_cliente -> id
             [cliente_row()],  # busca final
             [],  # vendas (frequência)
         )
@@ -153,6 +155,7 @@ def test_criar_cliente_guarda_so_digitos_e_um_principal(client):
         json={
             "nome": " Maria Souza ",
             "telefone": "(53) 98812-4477",
+            "cpf_cnpj": "529.982.247-25",
             "enderecos": [{"endereco": "R. Santos Dumont, 412", "regiao_id": 1}],
         },
     )
@@ -161,7 +164,75 @@ def test_criar_cliente_guarda_so_digitos_e_um_principal(client):
     assert corpo["telefone"] == "53988124477"
     assert corpo["enderecos"][0]["taxa_entrega"] == 8.0
     assert corpo["indicadores"]["total_pedidos"] == 0
-    assert db.tabelas[:2] == ["clientes", "enderecos"]
+
+    # cliente + endereços vão juntos, numa única função SQL (transação)
+    nome, params = db.rpcs[0]
+    assert nome == "criar_cliente"
+    assert params["p_cliente"]["nome"] == "Maria Souza"
+    assert params["p_cliente"]["telefone"] == "53988124477"
+    assert params["p_cliente"]["cpf_cnpj"] == "52998224725"
+    assert [e["principal"] for e in params["p_enderecos"]] == [True]
+
+
+def test_criar_cliente_envia_ponto_de_referencia_ao_banco(client):
+    db = usar_db(FakeDB(1, [cliente_row()], []))
+    r = client.post(
+        "/clientes",
+        json={
+            "nome": "Maria",
+            "telefone": "53988124477",
+            "enderecos": [{"endereco": "Rua A, 1", "ponto_referencia": "  portão azul "}],
+        },
+    )
+    assert r.status_code == 201, r.text
+    assert db.rpcs[0][1]["p_enderecos"][0]["ponto_referencia"] == "portão azul"
+
+
+def test_criar_cliente_cpf_invalido_da_422(client):
+    db = usar_db(FakeDB())
+    r = client.post(
+        "/clientes", json={"nome": "Ana", "telefone": "53988124477", "cpf_cnpj": "111.111.111-11"}
+    )
+    assert r.status_code == 422
+    assert db.rpcs == []
+
+
+def test_criar_cliente_email_invalido_da_422(client):
+    usar_db(FakeDB())
+    r = client.post(
+        "/clientes", json={"nome": "Ana", "telefone": "53988124477", "email": "ana@"}
+    )
+    assert r.status_code == 422
+
+
+def test_criar_cliente_telefone_duplicado_da_409(client):
+    erro = APIError(
+        {
+            "message": 'duplicate key value violates unique constraint "clientes_telefone_key"',
+            "code": "23505",
+            "details": "Key (telefone)=(53988124477) already exists.",
+        }
+    )
+    usar_db(FakeDB(erro))
+    r = client.post("/clientes", json={"nome": "Ana", "telefone": "53988124477"})
+    assert r.status_code == 409
+    assert "telefone" in r.json()["detail"]
+
+
+def test_criar_cliente_cpf_duplicado_da_409(client):
+    erro = APIError(
+        {
+            "message": 'duplicate key value violates unique constraint "clientes_cpf_cnpj_key"',
+            "code": "23505",
+            "details": "Key (cpf_cnpj)=(52998224725) already exists.",
+        }
+    )
+    usar_db(FakeDB(erro))
+    r = client.post(
+        "/clientes", json={"nome": "Ana", "telefone": "53988124477", "cpf_cnpj": "52998224725"}
+    )
+    assert r.status_code == 409
+    assert "CPF" in r.json()["detail"]
 
 
 def test_por_telefone_inexistente_da_404(client):
@@ -228,6 +299,114 @@ def test_excluir_cliente_com_vendas_da_409(client):
 def test_excluir_cliente_sem_vendas(client):
     usar_db(FakeDB([cliente_row()], [], []))
     assert client.delete("/clientes/1").status_code == 204
+
+
+# ------------------------------------------------------------- inadimplência
+
+
+def inadimplente_row(**extra):
+    return cliente_row(
+        status="inadimplente",
+        inadimplente_desde="2026-11-01T15:00:00+00:00",
+        motivo_inadimplencia="2 botijões fiado",
+        valor_devido="230.00",
+        **extra,
+    )
+
+
+def test_marcar_inadimplente(client):
+    db = usar_db(
+        FakeDB(
+            [cliente_row()],  # busca
+            [],  # update
+            [inadimplente_row()],  # busca final
+            [],  # vendas (frequência)
+        )
+    )
+    r = client.post(
+        "/clientes/1/inadimplente", json={"motivo": " 2 botijões fiado ", "valor_devido": "230.00"}
+    )
+    assert r.status_code == 200, r.text
+    corpo = r.json()
+    assert corpo["status"] == "inadimplente"
+    assert corpo["inadimplente_desde"] is not None
+    assert corpo["motivo_inadimplencia"] == "2 botijões fiado"
+    assert float(corpo["valor_devido"]) == 230.0
+    assert db.tabelas[:2] == ["clientes", "clientes"]
+
+
+def test_marcar_inadimplente_sem_corpo(client):
+    usar_db(FakeDB([cliente_row()], [], [inadimplente_row()], []))
+    assert client.post("/clientes/1/inadimplente").status_code == 200
+
+
+def test_marcar_inadimplente_ja_inadimplente_da_409(client):
+    usar_db(FakeDB([inadimplente_row()]))
+    assert client.post("/clientes/1/inadimplente").status_code == 409
+
+
+def test_marcar_inadimplente_cliente_inexistente_da_404(client):
+    usar_db(FakeDB([]))
+    assert client.post("/clientes/99/inadimplente").status_code == 404
+
+
+def test_marcar_inadimplente_valor_negativo_da_422(client):
+    usar_db(FakeDB())
+    assert client.post("/clientes/1/inadimplente", json={"valor_devido": "-5"}).status_code == 422
+
+
+def test_remover_inadimplente(client):
+    usar_db(FakeDB([inadimplente_row()], [], [cliente_row()], []))
+    r = client.delete("/clientes/1/inadimplente")
+    assert r.status_code == 200, r.text
+    corpo = r.json()
+    assert corpo["status"] == "ativo"
+    assert corpo["inadimplente_desde"] is None
+    assert corpo["valor_devido"] is None
+
+
+def test_remover_inadimplente_de_quem_nao_e_da_409(client):
+    usar_db(FakeDB([cliente_row()]))
+    assert client.delete("/clientes/1/inadimplente").status_code == 409
+
+
+def test_remover_inadimplente_cliente_inexistente_da_404(client):
+    usar_db(FakeDB([]))
+    assert client.delete("/clientes/99/inadimplente").status_code == 404
+
+
+def test_listar_inadimplentes(client):
+    linha = {
+        "id": 1,
+        "nome": "Maria Souza",
+        "telefone": "53988124477",
+        "cpf_cnpj": None,
+        "status": "inadimplente",
+        "inadimplente_desde": "2026-11-01T15:00:00+00:00",
+        "motivo_inadimplencia": "2 botijões fiado",
+        "valor_devido": "230.00",
+    }
+    usar_db(
+        FakeDB(
+            {"data": [linha], "count": 3},  # página
+            [{"valor_devido": "230.00"}, {"valor_devido": None}, {"valor_devido": "70.50"}],
+        )
+    )
+    r = client.get("/clientes/inadimplentes", params={"busca": "maria"})
+    assert r.status_code == 200, r.text
+    corpo = r.json()
+    assert corpo["total"] == 3
+    assert float(corpo["total_devido"]) == 300.5
+    item = corpo["itens"][0]
+    assert item["nome"] == "Maria Souza"
+    assert item["dias_inadimplente"] >= 0
+    assert float(item["valor_devido"]) == 230.0
+
+
+def test_rota_inadimplentes_nao_e_confundida_com_id(client):
+    # /clientes/inadimplentes tem que cair na listagem, não em /clientes/{id}
+    usar_db(FakeDB({"data": [], "count": 0}, []))
+    assert client.get("/clientes/inadimplentes").status_code == 200
 
 
 # -------------------------------------------------------------------- vendas

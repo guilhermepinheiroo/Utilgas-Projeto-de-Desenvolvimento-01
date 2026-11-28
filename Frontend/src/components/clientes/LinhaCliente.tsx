@@ -6,14 +6,23 @@ import { formatarTelefone } from "../../utils/FormatacaoTelefone";
 
 import iconeEditar from "../../assets/telaclientes/icon-editar-cliente.png";
 import iconeLixeira from "../../assets/telaclientes/icon-lixeira.png";
+import iconeAlerta from "../../assets/telaclientes/icon-alerta.png";
 
 interface LinhaClienteProps {
   cliente: Cliente;
   aoEditar: (cliente: Cliente) => void;
   aoExcluir: (cliente: Cliente) => void;
+  aoAlternarInadimplencia: (cliente: Cliente) => void;
 }
 
-export function LinhaCliente({ cliente, aoEditar, aoExcluir }: LinhaClienteProps) {
+export function LinhaCliente({
+  cliente,
+  aoEditar,
+  aoExcluir,
+  aoAlternarInadimplencia,
+}: LinhaClienteProps) {
+  const inadimplente = cliente.status === "inadimplente";
+
   return (
     <tr className="hover:bg-neutral-50">
       <td className="px-4 py-3">
@@ -53,6 +62,30 @@ export function LinhaCliente({ cliente, aoEditar, aoExcluir }: LinhaClienteProps
             className="cursor-pointer rounded-md bg-blue-100 p-1.5 transition-colors hover:bg-blue-200"
           >
             <img src={iconeEditar} alt="" className="size-3.5 object-contain" />
+          </button>
+
+          <button
+            type="button"
+            aria-label={
+              inadimplente
+                ? `Regularizar ${cliente.nome} (remover de inadimplentes)`
+                : `Marcar ${cliente.nome} como inadimplente`
+            }
+            title={inadimplente ? "Remover de inadimplentes" : "Marcar como inadimplente"}
+            onClick={() => aoAlternarInadimplencia(cliente)}
+            className={`cursor-pointer rounded-md p-1.5 transition-colors ${
+              inadimplente
+                ? "bg-green-100 text-green-700 hover:bg-green-200"
+                : "bg-orange-100 hover:bg-orange-200"
+            }`}
+          >
+            {inadimplente ? (
+              <span aria-hidden className="block size-3.5 text-center text-xs font-bold leading-[14px]">
+                ✓
+              </span>
+            ) : (
+              <img src={iconeAlerta} alt="" className="size-3.5 object-contain" />
+            )}
           </button>
 
           <button

@@ -4,6 +4,7 @@ import type {
   ClienteInput,
   Endereco,
   EnderecoInput,
+  InadimplenciaInput,
   PaginaClientes,
   ParametrosBuscaClientes,
   Regiao,
@@ -34,6 +35,9 @@ interface ClienteApi {
   observacoes: string | null;
   status: StatusCliente;
   criado_em: string;
+  inadimplente_desde: string | null;
+  motivo_inadimplencia: string | null;
+  valor_devido: string | number | null; // numeric chega como texto
   enderecos: EnderecoApi[];
   indicadores: {
     total_pedidos: number;
@@ -84,6 +88,9 @@ function clienteDeApi(c: ClienteApi): ClienteDetalhado {
     observacoes: c.observacoes,
     status: c.status,
     cadastradoEm: c.criado_em,
+    inadimplenteDesde: c.inadimplente_desde,
+    motivoInadimplencia: c.motivo_inadimplencia,
+    valorDevido: c.valor_devido !== null ? Number(c.valor_devido) : null,
     enderecos: c.enderecos.map(enderecoDeApi),
     indicadores: c.indicadores && {
       totalPedidos: c.indicadores.total_pedidos,
@@ -219,6 +226,28 @@ export function removerEndereco(clienteId: string, enderecoId: string): Promise<
   return api.delete(
     `/clientes/${encodeURIComponent(clienteId)}/enderecos/${encodeURIComponent(enderecoId)}`
   );
+}
+
+// "230,50" -> 230.5 (null se vazio). NaN se o texto não for um número válido.
+export function valorDigitadoParaNumero(texto: string): number | null {
+  const limpo = texto.replace(/[R$\s]/g, "").replace(/\./g, "").replace(",", ".");
+  return limpo ? Number(limpo) : null;
+}
+
+export async function marcarInadimplente(
+  id: string,
+  input: InadimplenciaInput
+): Promise<ClienteDetalhado> {
+  const c = await api.post<ClienteApi>(`/clientes/${encodeURIComponent(id)}/inadimplente`, {
+    motivo: ouNulo(input.motivo),
+    valor_devido: valorDigitadoParaNumero(input.valorDevido),
+  });
+  return clienteDeApi(c);
+}
+
+export async function removerInadimplente(id: string): Promise<ClienteDetalhado> {
+  const c = await api.delete<ClienteApi>(`/clientes/${encodeURIComponent(id)}/inadimplente`);
+  return clienteDeApi(c);
 }
 
 export async function buscarRegioes(): Promise<Regiao[]> {
