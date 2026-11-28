@@ -9,16 +9,25 @@ import { CardIndicador } from "../components/clientes/CardIndicador";
 import { Filtro } from "../components/clientes/Filtro";
 import { ModalCliente } from "../components/clientes/ModalCliente";
 import { ModalExcluirCliente } from "../components/clientes/ModalExcluirCliente";
+import {
+  ModalInadimplencia,
+  type AlvoInadimplencia,
+} from "../components/clientes/ModalInadimplencia";
 import { TabelaClientes } from "../components/clientes/TabelaClientes";
 
 import { opcoesFiltroStatus, rotulosStatus } from "../constants/Clientes";
 import { useClientes } from "../hooks/useClientes";
 import { useResumoClientes } from "../hooks/UseResumoClientes";
 import { useAcao } from "../hooks/UsenAcao";
-import { buscarClientes, excluirCliente } from "../services/Clientes";
+import {
+  buscarClientes,
+  excluirCliente,
+  marcarInadimplente,
+  removerInadimplente,
+} from "../services/Clientes";
 import { formatarNumero, formatarVariacao } from "../utils/FormataNumero";
 
-import type { Cliente } from "../types/clientes";
+import type { Cliente, InadimplenciaInput } from "../types/clientes";
 
 import iconeAlerta from "../assets/telaclientes/icon-alerta.png";
 import iconeFiltro from "../assets/telaclientes/icon-filtro.png";
@@ -73,11 +82,13 @@ export function Clientes() {
   const { resumo, recarregar: recarregarResumo } = useResumoClientes();
   const lista = useClientes();
   const exclusao = useAcao();
+  const inadimplencia = useAcao();
 
   const [mensagemSucesso, setMensagemSucesso] = useState("");
   const [erroGeral, setErroGeral] = useState<string | null>(null);
   const [edicao, setEdicao] = useState<ModalEdicao>(null);
   const [clienteParaExcluir, setClienteParaExcluir] = useState<Cliente | null>(null);
+  const [alvoInadimplencia, setAlvoInadimplencia] = useState<AlvoInadimplencia>(null);
   const [selecionandoWhatsapp, setSelecionandoWhatsapp] = useState(false);
 
   // Fecha o alerta automaticamente após 4 segundos
@@ -97,6 +108,36 @@ export function Clientes() {
     if (ok) {
       setClienteParaExcluir(null);
       setMensagemSucesso("Cliente excluído com sucesso!");
+      atualizarTudo();
+    }
+  }
+
+  function abrirInadimplencia(cliente: Cliente) {
+    inadimplencia.limparErro();
+    setAlvoInadimplencia({
+      cliente,
+      modo: cliente.status === "inadimplente" ? "remover" : "marcar",
+    });
+  }
+
+  async function confirmarMarcar(cliente: Cliente, dados: InadimplenciaInput) {
+    const ok = await inadimplencia.executar(async () => {
+      await marcarInadimplente(cliente.id, dados);
+    });
+    if (ok) {
+      setAlvoInadimplencia(null);
+      setMensagemSucesso(`${cliente.nome} foi marcado como inadimplente.`);
+      atualizarTudo();
+    }
+  }
+
+  async function confirmarRemover(cliente: Cliente) {
+    const ok = await inadimplencia.executar(async () => {
+      await removerInadimplente(cliente.id);
+    });
+    if (ok) {
+      setAlvoInadimplencia(null);
+      setMensagemSucesso(`${cliente.nome} foi removido dos inadimplentes.`);
       atualizarTudo();
     }
   }
@@ -255,6 +296,7 @@ export function Clientes() {
             exclusao.limparErro();
             setClienteParaExcluir(cliente);
           }}
+          aoAlternarInadimplencia={abrirInadimplencia}
         />
 
         <AcoesRapidas acoes={acoes} />
@@ -279,6 +321,15 @@ export function Clientes() {
         erro={exclusao.erro}
         aoFechar={() => setClienteParaExcluir(null)}
         aoConfirmar={confirmarExclusao}
+      />
+
+      <ModalInadimplencia
+        alvo={alvoInadimplencia}
+        executando={inadimplencia.executando}
+        erro={inadimplencia.erro}
+        aoFechar={() => setAlvoInadimplencia(null)}
+        aoMarcar={confirmarMarcar}
+        aoRemover={confirmarRemover}
       />
 
       <ModalSelecionarCliente

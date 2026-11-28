@@ -1,5 +1,6 @@
 import type { ClienteDetalhado } from "../../types/clientes";
 import { formatarDataCurta } from "../../utils/FormataData";
+import { formatarMoeda } from "../../utils/FormatacaoMoeda";
 import { formatarTelefone } from "../../utils/FormatacaoTelefone";
 import { BadgeStatusCliente } from "../clientes/BadgeStatusCliente";
 
@@ -53,7 +54,9 @@ export function CartaoCliente({
 
       {cliente.status === "inadimplente" && (
         <p role="alert" className="mt-3 rounded-md bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
-          Cliente inadimplente.
+          Cliente inadimplente
+          {cliente.valorDevido !== null && ` — deve ${formatarMoeda(cliente.valorDevido)}`}
+          {cliente.motivoInadimplencia && ` (${cliente.motivoInadimplencia})`}.
         </p>
       )}
 

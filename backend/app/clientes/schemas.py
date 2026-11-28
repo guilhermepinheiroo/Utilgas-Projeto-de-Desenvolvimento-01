@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -62,6 +63,10 @@ class IndicadoresCliente(BaseModel):
 class ClienteOut(ClienteBase):
     id: int
     criado_em: datetime
+    # Preenchidos só quando status == "inadimplente"
+    inadimplente_desde: datetime | None = None
+    motivo_inadimplencia: str | None = None
+    valor_devido: Decimal | None = None
     enderecos: list[EnderecoOut] = []
     indicadores: IndicadoresCliente | None = None
 
@@ -99,3 +104,32 @@ class ResumoClientes(BaseModel):
     novos_no_mes: Indicador
     ativos: Indicador
     inadimplentes: Indicador
+
+
+class InadimplenciaCreate(BaseModel):
+    """Corpo de POST /clientes/{id}/inadimplente (todos os campos são opcionais)."""
+
+    motivo: str | None = Field(None, max_length=500, description="Ex.: 2 botijões fiado")
+    valor_devido: Decimal | None = Field(None, ge=0, max_digits=10, decimal_places=2)
+
+
+class ClienteInadimplente(BaseModel):
+    """Linha da lista de inadimplentes."""
+
+    id: int
+    nome: str
+    telefone: str
+    cpf_cnpj: str | None = None
+    status: StatusCliente
+    inadimplente_desde: datetime
+    dias_inadimplente: int
+    motivo_inadimplencia: str | None = None
+    valor_devido: Decimal | None = None
+
+
+class InadimplentesPagina(BaseModel):
+    itens: list[ClienteInadimplente]
+    total: int
+    total_devido: Decimal = Decimal("0")
+    pagina: int
+    tamanho: int
